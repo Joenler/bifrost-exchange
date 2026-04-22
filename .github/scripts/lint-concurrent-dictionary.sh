@@ -24,8 +24,22 @@ if [ ! -d "$SCAN_DIR" ]; then
     exit 2
 fi
 
+# HARD PRECONDITION: ripgrep must be a real executable on PATH.
+# Some interactive shells define an `rg` function that shadows the binary (notably
+# the Claude Code wrapper, which exits 0 with no output when invoked in a subshell
+# without the parent process). That would turn this lint into a silent no-op — the
+# exact failure mode the LintFenceFixtures exist to prevent.
+if ! command -v rg >/dev/null 2>&1 || ! rg --version >/dev/null 2>&1; then
+    echo "lint-concurrent-dictionary.sh: ripgrep (rg) is not available or not executable." >&2
+    echo "Install it: apt-get install -y ripgrep  |  brew install ripgrep" >&2
+    echo "If rg IS installed but this message fires, your shell may be shadowing it with a function;" >&2
+    echo "re-run with \`env -i PATH=\$PATH bash $0 $SCAN_DIR\` to bypass shell rcs." >&2
+    exit 2
+fi
+
 EXIT=0
-RG="rg --color=never --no-heading -n"
+# Use absolute/real rg via `command` to bypass any shell function shadow.
+RG="command rg --color=never --no-heading -n"
 
 # Reports a violation unless the line immediately preceding the hit carries
 # the escape-valve comment. Called per ripgrep hit.
