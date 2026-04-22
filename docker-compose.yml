@@ -1,0 +1,122 @@
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 15s
+
+  exchange:
+    build:
+      context: .
+      dockerfile: src/exchange/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  quoter:
+    build:
+      context: .
+      dockerfile: src/quoter/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  imbalance:
+    build:
+      context: .
+      dockerfile: src/imbalance/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  dah-auction:
+    build:
+      context: .
+      dockerfile: src/dah-auction/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: src/orchestrator/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  gateway:
+    build:
+      context: .
+      dockerfile: src/gateway/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  recorder:
+    build:
+      context: .
+      dockerfile: src/recorder/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  # bigscreen runs under the `ui` profile so `docker compose up --wait` (default profile)
+  # does NOT wait for vite-preview to boot — keeps the 30-s BOOT-03 budget tight.
+  # Spectators run `docker compose --profile ui up bigscreen` separately.
+  # Phase 10 replaces this with a production nginx-served build + real WebSocket wiring.
+  bigscreen:
+    profiles: ["ui"]
+    build:
+      context: ./bigscreen
+      dockerfile: Dockerfile
+    ports:
+      - "4173:4173"
