@@ -11,7 +11,7 @@ gateway, recorder, MC console, and spectator big-screen from a single
 ## Quick start
 
 ```bash
-git clone https://github.com/jonathanjonler/bifrost-exchange.git
+git clone https://github.com/Joenler/bifrost-exchange.git
 cd bifrost-exchange
 docker compose up --wait
 ```
@@ -47,14 +47,16 @@ See [`CLAUDE.md`](./CLAUDE.md) for the full engineering-rigor rules.
 ## Architecture decisions
 
 The BIFROST program keeps its architecture decision records in the sibling
-[`bifrost-program`](https://github.com/jonathanjonler/bifrost-program) repo
-(organizer-internal). The following ADRs govern this repo's design:
+`bifrost-program/` planning hub (organizer-internal; kept local and not published
+to GitHub). The links below resolve when this repo and `bifrost-program/` are
+cloned as siblings under the same parent directory — which is the documented
+organizer workstation setup.
 
-- [`ADR-0002` — gRPC Strategy Gateway](https://github.com/jonathanjonler/bifrost-program/blob/main/ADRs/ADR-0002-grpc-strategy-gateway.md) — team-facing wire decision.
-- [`ADR-0003` — Aggregate-position imbalance pricing](https://github.com/jonathanjonler/bifrost-program/blob/main/ADRs/ADR-0003-imbalance-pricing-model.md).
-- [`ADR-0004` — Fair-play guards](https://github.com/jonathanjonler/bifrost-program/blob/main/ADRs/ADR-0004-fair-play-guards.md).
-- [`ADR-0005` — Command-driven MC console](https://github.com/jonathanjonler/bifrost-program/blob/main/ADRs/ADR-0005-mc-console-command-driven.md).
-- [`ADR-0006` — Two-code-repo layout](https://github.com/jonathanjonler/bifrost-program/blob/main/ADRs/ADR-0006-two-code-repo-layout.md) — supersedes ADR-0001.
+- [`ADR-0002` — gRPC Strategy Gateway](../bifrost-program/ADRs/ADR-0002-grpc-strategy-gateway.md) — team-facing wire decision.
+- [`ADR-0003` — Aggregate-position imbalance pricing](../bifrost-program/ADRs/ADR-0003-imbalance-pricing-model.md).
+- [`ADR-0004` — Fair-play guards](../bifrost-program/ADRs/ADR-0004-fair-play-guards.md).
+- [`ADR-0005` — Command-driven MC console](../bifrost-program/ADRs/ADR-0005-mc-console-command-driven.md).
+- [`ADR-0006` — Two-code-repo layout](../bifrost-program/ADRs/ADR-0006-two-code-repo-layout.md) — supersedes ADR-0001.
 
 ## License
 
