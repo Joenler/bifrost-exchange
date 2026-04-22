@@ -1,0 +1,48 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docuser
+
+## NuGet
+*.nupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+## IDE
+.vs/
+.idea/
+*.swp
+*~
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/*
+!build/BannedSymbols.txt
+bld/
+
+## Test results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+
+## Node / Frontend
+node_modules/
+dist/
+
+## Runtime artifacts
+logs/
+traces/
+sessions/
+
+## Local-only
+.claude/
