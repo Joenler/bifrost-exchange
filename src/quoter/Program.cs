@@ -1,2 +1,8 @@
-// Phase 00 Plan 06 placeholder — Plan 07 replaces with Host.CreateApplicationBuilder + StartupLogger.
-return;
+using Bifrost.Quoter;
+using Microsoft.Extensions.Hosting;
+
+var builder = Host.CreateApplicationBuilder(args);
+builder.Services.AddHostedService<StartupLogger>();
+
+var host = builder.Build();
+await host.RunAsync();

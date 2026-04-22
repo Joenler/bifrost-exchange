@@ -1,2 +1,2 @@
-// Phase 00 Plan 06 placeholder — later phases replace with real MC CLI entry point.
-return;
+Console.WriteLine("bifrost-mc v0 — CLI skeleton (Phase 06/06b fills)");
+return 0;
