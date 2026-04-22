@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# .github/scripts/lint-concurrent-dictionary.sh
+# Blocks compound read-modify-write on ConcurrentDictionary on scoring-relevant state.
+#
+# Forbidden shapes:
+#  (a) GetOrAdd(..., factory) where factory is a lambda with a statement body (side-effecting)
+#  (b) TryGetValue(key, out var x) followed within 3 lines by mutation on the same dict[key]
+#  (c) AddOrUpdate(..., updateValueFactory) where updateValueFactory body has '=' (mutating)
+#
+# Escape valve: the LINE IMMEDIATELY PRECEDING the violation may contain
+#   // bifrost-lint: compound-ok — <reason>
+# The reason is captured into the CI log for human review.
+#
+# Usage: lint-concurrent-dictionary.sh [directory]   (default: src)
+# Exit:  0 clean, 1 at least one unescaped violation, 2 usage error.
+
+set -euo pipefail
+
+SCAN_DIR="${1:-src}"
+
+if [ ! -d "$SCAN_DIR" ]; then
+    echo "lint-concurrent-dictionary.sh: directory not found: $SCAN_DIR" >&2
+    echo "Usage: $0 [directory]" >&2
+    exit 2
+fi
+
+EXIT=0
+RG="rg --color=never --no-heading -n"
+
+# Reports a violation unless the line immediately preceding the hit carries
+# the escape-valve comment. Called per ripgrep hit.
+check_hit() {
+    local shape_label="$1"      # "a", "b", or "c"
+    local hint="$2"             # remediation hint
+    local file="$3"
+    local line="$4"
+    local prev=$((line - 1))
+    if [ "$prev" -ge 1 ] && sed -n "${prev}p" "$file" 2>/dev/null | grep -q 'bifrost-lint: compound-ok'; then
+        echo "::notice file=$file,line=$line::shape-($shape_label) escape-valve honored: $(sed -n "${prev}p" "$file" | sed 's/^[[:space:]]*//')"
+    else
+        echo "::error file=$file,line=$line::ConcurrentDictionary compound-op shape ($shape_label) — $hint"
+        EXIT=1
+    fi
+}
+
+# Shape (a): GetOrAdd with a statement-bodied lambda (matches `=>` followed by `{`).
+# Expression-bodied lambdas (`=> expr`) are exempt.
+while IFS= read -r hit; do
+    [ -z "$hit" ] && continue
+    file=$(echo "$hit" | cut -d: -f1)
+    line=$(echo "$hit" | cut -d: -f2)
+    check_hit "a" \
+        "GetOrAdd with statement-bodied factory; use expression-body, Monitor lock, or add '// bifrost-lint: compound-ok — <reason>'." \
+        "$file" "$line"
+done < <($RG '\.GetOrAdd\s*\([^,]+,\s*(\w+\s*=>|\([^)]*\)\s*=>)\s*\{' "$SCAN_DIR" --type cs || true)
+
+# Shape (b): TryGetValue followed by mutation on the same dict[key] within 3 lines.
+# Multi-line regex with back-reference to dict var (\1) and key (\2).
+while IFS= read -r hit; do
+    [ -z "$hit" ] && continue
+    file=$(echo "$hit" | cut -d: -f1)
+    line=$(echo "$hit" | cut -d: -f2)
+    check_hit "b" \
+        "TryGetValue followed by mutation on same key; wrap in Monitor lock or add '// bifrost-lint: compound-ok — <reason>'." \
+        "$file" "$line"
+done < <($RG -U --multiline-dotall '(\w+)\.TryGetValue\s*\(\s*(\w+)[^)]*\).*\n(.*\n){0,2}.*\1\[\2\]\s*(=|\+\+|--|\+=|-=)' "$SCAN_DIR" --type cs || true)
+
+# Shape (c): AddOrUpdate with a mutating updateValueFactory body.
+# Heuristic: the updater body (between `=>` and `}`) contains `=` that is NOT `==`, `!=`, `<=`, `>=`.
+while IFS= read -r hit; do
+    [ -z "$hit" ] && continue
+    file=$(echo "$hit" | cut -d: -f1)
+    line=$(echo "$hit" | cut -d: -f2)
+    check_hit "c" \
+        "AddOrUpdate with mutating updater; replace with immutable rebuild or Monitor lock, or add '// bifrost-lint: compound-ok — <reason>'." \
+        "$file" "$line"
+done < <($RG -U --multiline-dotall '\.AddOrUpdate\s*\([^)]+,\s*\([^)]+\)\s*=>\s*\{[^}]*[^=!<>]=[^=]' "$SCAN_DIR" --type cs || true)
+
+if [ "$EXIT" -ne 0 ]; then
+    echo "::error::lint-concurrent-dictionary.sh found one or more violations — see the ::error:: lines above."
+else
+    echo "lint-concurrent-dictionary.sh: clean ($SCAN_DIR)"
+fi
+
+exit $EXIT
