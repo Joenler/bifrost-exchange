@@ -172,7 +172,9 @@ jobs:
         run: |
           set +e
           bash .github/scripts/lint-concurrent-dictionary.sh tests/LintFenceFixtures 2>&1 | tee rg.log
-          code=$?
+          # PIPESTATUS[0] — not $? — so we capture the script's exit code,
+          # not tee's (which is always 0 unless the pipe itself breaks).
+          code=${PIPESTATUS[0]}
           set -e
           if [ "$code" -eq 0 ]; then
             echo "::error::lint-concurrent-dictionary.sh exited 0 on fixtures — the rule is BROKEN"
