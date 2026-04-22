@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <!-- Library (not Exe) — no entry point needed. We just want the compiler to -->
+        <!-- run BannedApiAnalyzers against the fixture .cs files.                    -->
+        <OutputType>Library</OutputType>
+        <IsPackable>false</IsPackable>
+        <RootNamespace>Bifrost.LintFenceFixtures</RootNamespace>
+        <!-- TreatWarningsAsErrors is inherited from root Directory.Build.props; -->
+        <!-- BannedApiAnalyzers' RS0030 is a warning promoted to error via that. -->
+    </PropertyGroup>
+
+    <!-- Intentionally no Bifrost.Time ProjectReference — fixtures exist to -->
+    <!-- trigger analyzer errors on banned APIs, not to demonstrate usage.  -->
+
+</Project>
