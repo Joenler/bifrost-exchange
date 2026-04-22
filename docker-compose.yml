@@ -4,6 +4,8 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    tmpfs:
+      - /var/lib/rabbitmq:uid=999,gid=999,mode=755
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
       interval: 5s
@@ -15,6 +17,9 @@ services:
     build:
       context: .
       dockerfile: src/exchange/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_started
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s
@@ -26,6 +31,9 @@ services:
     build:
       context: .
       dockerfile: src/quoter/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_started
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s
@@ -37,6 +45,9 @@ services:
     build:
       context: .
       dockerfile: src/imbalance/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_started
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s
@@ -48,6 +59,9 @@ services:
     build:
       context: .
       dockerfile: src/dah-auction/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_started
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s
@@ -59,6 +73,9 @@ services:
     build:
       context: .
       dockerfile: src/orchestrator/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_started
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s
@@ -70,6 +87,9 @@ services:
     build:
       context: .
       dockerfile: src/gateway/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_started
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s
@@ -81,6 +101,9 @@ services:
     build:
       context: .
       dockerfile: src/recorder/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_started
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s
