@@ -1,0 +1,7 @@
+# BIFROST forbidden APIs — CI lint fence (BOOT-04).
+# Syntax: {DocCommentId};{Description}
+# Prefixes: T: type, M: method, P: property, F: field, E: event
+# Violations become build errors via TreatWarningsAsErrors=true.
+
+P:System.Random.Shared;Use an injected Random seeded from the scenario seed (see ADR-0004 / Bifrost.Time.IClock for deterministic alternatives).
+P:System.DateTime.UtcNow;Use injected TimeProvider via Bifrost.Time.IClock.

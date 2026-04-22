@@ -28,6 +28,7 @@ x64/
 x86/
 build/*
 !build/BannedSymbols.txt
+!build/UPSTREAM.md
 bld/
 
 ## Test results
