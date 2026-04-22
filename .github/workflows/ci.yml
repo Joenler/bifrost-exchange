@@ -1,0 +1,174 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    name: ${{ matrix.slot }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slot: contracts
+            kind: placeholder
+            path: src/contracts
+          - slot: contracts-internal
+            kind: placeholder
+            path: src/contracts-internal
+          - slot: exchange
+            kind: dotnet
+            path: src/exchange
+            tests: tests/Bifrost.Exchange.Tests
+          - slot: quoter
+            kind: dotnet
+            path: src/quoter
+            tests: tests/Bifrost.Quoter.Tests
+          - slot: imbalance
+            kind: dotnet
+            path: src/imbalance
+            tests: tests/Bifrost.Imbalance.Tests
+          - slot: dah-auction
+            kind: dotnet
+            path: src/dah-auction
+            tests: tests/Bifrost.DahAuction.Tests
+          - slot: orchestrator
+            kind: dotnet
+            path: src/orchestrator
+            tests: tests/Bifrost.Orchestrator.Tests
+          - slot: gateway
+            kind: dotnet
+            path: src/gateway
+            tests: tests/Bifrost.Gateway.Tests
+          - slot: mc-console
+            kind: dotnet
+            path: src/mc-console
+            tests: tests/Bifrost.McConsole.Tests
+          - slot: recorder
+            kind: dotnet
+            path: src/recorder
+            tests: tests/Bifrost.Recorder.Tests
+          - slot: bigscreen
+            kind: node
+            path: bigscreen
+          - slot: aggregate-integration
+            kind: aggregate
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        if: matrix.kind == 'dotnet' || matrix.kind == 'aggregate'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node 22
+        if: matrix.kind == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: bigscreen/package-lock.json
+
+      - name: Placeholder slot — assert README + UPSTREAM exist
+        if: matrix.kind == 'placeholder'
+        run: |
+          test -f ${{ matrix.path }}/README.md
+          test -f ${{ matrix.path }}/UPSTREAM.md
+
+      - name: Build and test (.NET slot)
+        if: matrix.kind == 'dotnet'
+        run: |
+          dotnet build ${{ matrix.path }} -c Release --nologo
+          dotnet test ${{ matrix.tests }} -c Release --nologo --no-build
+
+      - name: Build and test (bigscreen)
+        if: matrix.kind == 'node'
+        working-directory: bigscreen
+        run: |
+          npm ci --no-audit --no-fund
+          npx tsc -b
+          npm run build
+          npx vitest run
+
+      - name: Aggregate integration
+        if: matrix.kind == 'aggregate'
+        run: |
+          dotnet build Bifrost.sln -c Release --nologo
+          timeout 30 docker compose up --wait
+          docker compose ps --format json > /tmp/ps.json
+          if grep -E '"Health":"(unhealthy|starting)"' /tmp/ps.json; then
+            echo "::error::One or more services not healthy after 30s"
+            docker compose logs
+            exit 1
+          fi
+          docker compose down
+
+  ci-lint:
+    name: ci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Verify ripgrep
+        run: rg --version
+      - name: Build with BannedApiAnalyzers (src/ only)
+        # TreatWarningsAsErrors is set in Directory.Build.props; RS0030 violations → build failure.
+        run: dotnet build Bifrost.sln -c Release --nologo
+      - name: ripgrep ConcurrentDictionary compound-op rule (src/)
+        run: bash .github/scripts/lint-concurrent-dictionary.sh src
+
+  ci-lint-fence-negative:
+    name: ci-lint-fence-negative
+    # Proves the fence fails on intentional violations.
+    # Documented deviation from CONTEXT.md D-12: this job SHOULD also be a required check on main
+    # per RESEARCH.md Open Question #2 — otherwise a PR could disable the fixtures without blocking merge.
+    # Plan 14 decides whether to mark both `ci-lint` AND `ci-lint-fence-negative` as required.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Verify ripgrep
+        run: rg --version
+      - name: Build fixtures (EXPECTED TO FAIL with RS0030)
+        run: |
+          set +e
+          dotnet build tests/LintFenceFixtures -c Release --nologo 2>&1 | tee build.log
+          code=${PIPESTATUS[0]}
+          set -e
+          if [ "$code" -eq 0 ]; then
+            echo "::error::tests/LintFenceFixtures built successfully — BannedApiAnalyzer fence is BROKEN"
+            exit 1
+          fi
+          grep -q 'RS0030' build.log || { echo "::error::expected RS0030 diagnostic not found"; exit 1; }
+          grep -qE 'Random\.Shared' build.log || { echo "::error::RS0030 diagnostic did not name Random.Shared"; exit 1; }
+          grep -qE 'DateTime\.UtcNow' build.log || { echo "::error::RS0030 diagnostic did not name DateTime.UtcNow"; exit 1; }
+          echo "✓ BannedApi fence correctly blocks Random.Shared + DateTime.UtcNow"
+      - name: ripgrep fixture (EXPECTED TO FIND VIOLATIONS)
+        run: |
+          set +e
+          bash .github/scripts/lint-concurrent-dictionary.sh tests/LintFenceFixtures 2>&1 | tee rg.log
+          code=$?
+          set -e
+          if [ "$code" -eq 0 ]; then
+            echo "::error::lint-concurrent-dictionary.sh exited 0 on fixtures — the rule is BROKEN"
+            exit 1
+          fi
+          err_count=$(grep -cE '::error file=' rg.log || true)
+          if [ "$err_count" -lt 3 ]; then
+            echo "::error::expected ≥ 3 ::error file= lines from script; got $err_count"
+            exit 1
+          fi
+          echo "✓ ripgrep fence correctly flags compound ConcurrentDictionary patterns"
