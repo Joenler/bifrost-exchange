@@ -84,7 +84,7 @@ jobs:
         if: matrix.kind == 'dotnet'
         run: |
           dotnet build ${{ matrix.path }} -c Release --nologo
-          dotnet test ${{ matrix.tests }} -c Release --nologo --no-build
+          dotnet test ${{ matrix.tests }} -c Release --nologo
 
       - name: Build and test (bigscreen)
         if: matrix.kind == 'node'
