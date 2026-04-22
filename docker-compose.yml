@@ -15,9 +15,6 @@ services:
     build:
       context: .
       dockerfile: src/exchange/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s
@@ -29,9 +26,6 @@ services:
     build:
       context: .
       dockerfile: src/quoter/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s
@@ -43,9 +37,6 @@ services:
     build:
       context: .
       dockerfile: src/imbalance/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s
@@ -57,9 +48,6 @@ services:
     build:
       context: .
       dockerfile: src/dah-auction/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s
@@ -71,9 +59,6 @@ services:
     build:
       context: .
       dockerfile: src/orchestrator/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s
@@ -85,9 +70,6 @@ services:
     build:
       context: .
       dockerfile: src/gateway/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s
@@ -99,9 +81,6 @@ services:
     build:
       context: .
       dockerfile: src/recorder/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s
