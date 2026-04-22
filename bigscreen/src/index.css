@@ -1,0 +1,69 @@
+/* bigscreen/src/index.css — design tokens from the bigscreen UI contract */
+
+:root {
+    /* Color (60/30/10 + text + destructive) — dark-mode-first */
+    --color-bg: #0F172A;              /* dominant 60% (slate-900) */
+    --color-bg-secondary: #1E293B;    /* secondary 30% (slate-800) — reserved for real UI */
+    --color-accent: #38BDF8;          /* accent 10% (sky-400) — used on the placeholder heading */
+    --color-destructive: #F87171;     /* red-400 — reserved for urgent alerts */
+    --color-text: #E2E8F0;            /* slate-200 */
+    --color-text-muted: #94A3B8;      /* slate-400 — reserved for axis labels */
+
+    /* Spacing scale — all 4-multiples */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-2xl: 48px;
+    --space-3xl: 64px;
+
+    /* Typography */
+    --font-size-body: 16px;
+    --font-weight-body: 400;
+    --line-height-body: 1.5;
+    --font-size-label: 14px;
+    --font-size-heading: 28px;
+    --font-weight-heading: 600;
+    --line-height-heading: 1.2;
+    --font-size-display: 64px;
+    --font-weight-display: 600;
+    --line-height-display: 1.2;
+}
+
+html, body, #root {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+main {
+    width: 100vw;
+    min-height: 100vh;
+    padding: var(--space-3xl);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-md);
+    box-sizing: border-box;
+}
+
+main h1 {
+    margin: 0;
+    font-size: var(--font-size-display);
+    font-weight: var(--font-weight-display);
+    line-height: var(--line-height-display);
+    color: var(--color-accent);
+}
+
+main p {
+    margin: 0;
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-body);
+    line-height: var(--line-height-body);
+    color: var(--color-text);
+}
