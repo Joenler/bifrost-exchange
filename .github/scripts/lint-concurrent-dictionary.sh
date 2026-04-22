@@ -68,16 +68,25 @@ while IFS= read -r hit; do
         "$file" "$line"
 done < <($RG '\.GetOrAdd\s*\([^,]+,\s*(\w+\s*=>|\([^)]*\)\s*=>)\s*\{' "$SCAN_DIR" --type cs || true)
 
-# Shape (b): TryGetValue followed by mutation on the same dict[key] within 3 lines.
-# Multi-line regex with back-reference to dict var (\1) and key (\2).
+# Shape (b): TryGetValue followed by an indexer-assignment within 3 lines.
+# CI's apt ripgrep on ubuntu-latest is built WITHOUT PCRE2, so backreferences are
+# unavailable. We approximate shape (b) without them by flagging any TryGetValue
+# that has ANY dict[...] = ... / += / -= / ++ / -- statement in the next 3 lines.
+# This may over-match when two different dicts are used in the same neighborhood;
+# the escape-valve comment is the author's opt-out for intentional patterns.
 while IFS= read -r hit; do
     [ -z "$hit" ] && continue
     file=$(echo "$hit" | cut -d: -f1)
     line=$(echo "$hit" | cut -d: -f2)
-    check_hit "b" \
-        "TryGetValue followed by mutation on same key; wrap in Monitor lock or add '// bifrost-lint: compound-ok — <reason>'." \
-        "$file" "$line"
-done < <($RG -U --multiline-dotall '(\w+)\.TryGetValue\s*\(\s*(\w+)[^)]*\).*\n(.*\n){0,2}.*\1\[\2\]\s*(=|\+\+|--|\+=|-=)' "$SCAN_DIR" --type cs || true)
+    # Extract the 3 lines following the TryGetValue call and check for an indexer-assignment.
+    next_end=$((line + 3))
+    window=$(sed -n "$((line+1)),${next_end}p" "$file" 2>/dev/null || true)
+    if echo "$window" | $RG -q '\w+\s*\[[^\]]+\]\s*(=[^=]|\+\+|--|\+=|-=)' -; then
+        check_hit "b" \
+            "TryGetValue followed by indexer-assignment within 3 lines; wrap in Monitor lock or add '// bifrost-lint: compound-ok — <reason>'." \
+            "$file" "$line"
+    fi
+done < <($RG -n '\.TryGetValue\s*\(' "$SCAN_DIR" --type cs || true)
 
 # Shape (c): AddOrUpdate with a mutating updateValueFactory body.
 # Heuristic: the updater body (between `=>` and `}`) contains `=` that is NOT `==`, `!=`, `<=`, `>=`.
