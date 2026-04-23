@@ -18,6 +18,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\src\recorder\Bifrost.Recorder.csproj" />
         <ProjectReference Include="..\..\src\common\Bifrost.Time\Bifrost.Time.csproj" />
+        <ProjectReference Include="..\..\src\contracts-internal\Bifrost.Contracts.Internal\Bifrost.Contracts.Internal.csproj" />
     </ItemGroup>
 
 </Project>
