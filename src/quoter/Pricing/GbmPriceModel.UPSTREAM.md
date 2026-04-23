@@ -11,10 +11,10 @@
 
 ## Divergence rationale
 
-**D-09 (CONTEXT.md)**: BIFROST owns regime state externally in the `RegimeSchedule`
+**D-09**: BIFROST owns regime state externally in the `RegimeSchedule`
 (authored in Plan 03-05). Arena's internal `RegimeState` / `RegimeType` /
 `TryTransition` machinery in `GbmPriceModel.StepAll()` would silently fight the
-external schedule (Landmine #1 in 03-CONTEXT.md). The strip is surgical:
+external schedule. The strip is surgical:
 
 - Deleted regime fields (`_areas`, `_areaInstrumentIndices`, `_transitionBuffer`),
   the regime-construction loop, the entire regime-switching `switch (regime.CurrentRegime)`
