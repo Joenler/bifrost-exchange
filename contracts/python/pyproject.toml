@@ -1,0 +1,34 @@
+[project]
+name = "bifrost_contracts"
+version = "0.0.0"
+description = "BIFROST gRPC wire contracts (generated from .proto)."
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = [
+    "grpcio>=1.78.0",
+    "protobuf>=5.29.0",
+]
+
+[dependency-groups]
+dev = [
+    "grpcio-tools>=1.78.0",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["bifrost_contracts"]
+# `artifacts` tells hatchling to include files that would otherwise be excluded
+# by VCS ignore rules (our .gitignore excludes the generated bindings because
+# they are rebuilt from ../*.proto on every build and never committed). Without
+# this, the wheel would ship only the empty __init__.py files and CONT-03's
+# "wheel carries generated *_pb2.py and *_pb2.pyi" invariant would be violated.
+# Pattern covers every surface's _pb2.py, _pb2.pyi, and _pb2_grpc.py under any
+# bifrost_contracts/<surface>/ subdir.
+artifacts = [
+    "bifrost_contracts/**/*_pb2.py",
+    "bifrost_contracts/**/*_pb2.pyi",
+    "bifrost_contracts/**/*_pb2_grpc.py",
+]
