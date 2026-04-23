@@ -4,8 +4,6 @@ package bifrost.auction.v1;
 
 option csharp_namespace = "Bifrost.Contracts.Auction";
 
-import "market.proto";
-
 message BidStep {
   int64 price_ticks = 1;
   int64 quantity_ticks = 2;
