@@ -16,6 +16,9 @@
     <ItemGroup>
         <ProjectReference Include="..\..\src\exchange\Bifrost.Exchange.csproj" />
         <ProjectReference Include="..\..\src\exchange\Exchange.Domain\Bifrost.Exchange.Domain.csproj" />
+        <ProjectReference Include="..\..\src\exchange\Exchange.Application\Bifrost.Exchange.Application.csproj" />
+        <ProjectReference Include="..\..\src\contracts-internal\Bifrost.Contracts.Internal\Bifrost.Contracts.Internal.csproj" />
+        <ProjectReference Include="..\..\src\common\Bifrost.Time\Bifrost.Time.csproj" />
     </ItemGroup>
 
 </Project>
