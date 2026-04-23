@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package bifrost.round.v1;
+
+option csharp_namespace = "Bifrost.Contracts.Round";
+
+enum State {
+  STATE_UNSPECIFIED = 0;
+  STATE_ITERATION_OPEN = 1;
+  STATE_AUCTION_OPEN = 2;
+  STATE_AUCTION_CLOSED = 3;
+  STATE_ROUND_OPEN = 4;
+  STATE_GATE = 5;
+  STATE_SETTLED = 6;
+  STATE_ABORTED = 7;
+}
+
+message RoundState {
+  State state = 1;
+  int32 round_number = 2;
+  int64 scenario_seed = 3;                      // 0 during scored rounds (hidden from teams)
+  int64 transition_ns = 4;
+  int64 expected_next_transition_ns = 5;        // advisory only
+}

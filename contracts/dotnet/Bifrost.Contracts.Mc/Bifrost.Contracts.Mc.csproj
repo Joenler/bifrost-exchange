@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <PackageId>Bifrost.Contracts.Mc</PackageId>
+        <Description>BIFROST mc gRPC wire contracts (generated from .proto).</Description>
+        <Authors>BIFROST</Authors>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <IncludeBuildOutput>true</IncludeBuildOutput>
+        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Google.Protobuf" />
+        <PackageReference Include="Grpc.Net.Client" />
+        <PackageReference Include="Grpc.Tools" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Protobuf Include="..\..\mc.proto" ProtoRoot="..\.." GrpcServices="Both" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Bifrost.Contracts.Round\Bifrost.Contracts.Round.csproj" />
+        <ProjectReference Include="..\Bifrost.Contracts.Events\Bifrost.Contracts.Events.csproj" />
+    </ItemGroup>
+
+</Project>

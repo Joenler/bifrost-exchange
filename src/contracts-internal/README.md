@@ -1,7 +1,9 @@
 # src/contracts-internal/
 
-Placeholder — Phase 01/02 lands the internal RabbitMQ DTO records forked from Arena's
-`Contracts/` project here. Phase 07's gateway translates between `../contracts/` gRPC
-types and these internal DTOs; `docs/gateway-mapping.md` is the per-type mapping.
+Internal RabbitMQ DTO records forked verbatim from Arena's `Contracts/` project (see
+`UPSTREAM.md` for source repo, commit SHA, and provenance notes). These records are
+the wire types that circulate between central-machine services over RabbitMQ; they are
+**never** sent across the team-facing gRPC boundary.
 
-Until Phase 01/02 ships, this directory holds only this README and `UPSTREAM.md`.
+The gateway translates between the gRPC surface under `../contracts/` and these internal
+DTOs. Translation rules live in `docs/gateway-mapping.md`.

@@ -1,0 +1,9 @@
+# uv / venv / lock artifacts — the harness runs against whatever bindings
+# contracts/python/build.sh most recently generated, so we do not pin a
+# lockfile here. `uv sync` resolves protobuf + bifrost_contracts fresh per
+# environment (dev laptop + CI slot).
+.venv/
+.uv/
+uv.lock
+__pycache__/
+*.pyc

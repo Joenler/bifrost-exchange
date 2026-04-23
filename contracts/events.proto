@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package bifrost.events.v1;
+
+option csharp_namespace = "Bifrost.Contracts.Events";
+
+enum Severity {
+  SEVERITY_UNSPECIFIED = 0;
+  SEVERITY_INFO = 1;
+  SEVERITY_WARN = 2;
+  SEVERITY_URGENT = 3;
+}
+
+enum Regime {
+  REGIME_UNSPECIFIED = 0;
+  REGIME_CALM = 1;
+  REGIME_TRENDING = 2;
+  REGIME_VOLATILE = 3;
+  REGIME_SHOCK = 4;
+}
+
+enum ShockPersistence {
+  SHOCK_PERSISTENCE_UNSPECIFIED = 0;
+  SHOCK_PERSISTENCE_ROUND = 1;                  // persists to gate
+  SHOCK_PERSISTENCE_TRANSIENT = 2;              // wears off within the round
+}
+
+message Event {
+  int64 timestamp_ns = 1;
+  Severity severity = 2;
+  oneof payload {
+    RegimeChange regime_change = 3;
+    ForecastRevision forecast_revision = 4;
+    News news = 5;
+    MarketAlert market_alert = 6;
+    ConfigChange config_change = 7;
+    PhysicalShock physical_shock = 8;
+  }
+}
+
+message RegimeChange {
+  Regime from = 1;
+  Regime to = 2;
+  bool mc_forced = 3;                           // MC-override vs scheduled
+}
+
+message ForecastRevision {
+  int64 new_forecast_price_ticks = 1;
+  string reason = 2;                            // "mc_revise", "physical_shock", etc.
+}
+
+message News {
+  string text = 1;
+  string library_key = 2;                       // empty for free-text
+}
+
+message MarketAlert {
+  string text = 1;
+}
+
+message ConfigChange {
+  string path = 1;                              // e.g. "guards.otr.max_ratio"
+  string old_value = 2;
+  string new_value = 3;
+}
+
+// Physical shock. Signed MW (int32 sufficient for realistic grid-scale
+// events); label is human-readable; persistence picks between round-scoped
+// and transient.
+message PhysicalShock {
+  int32 mw = 1;
+  string label = 2;
+  ShockPersistence persistence = 3;
+}
