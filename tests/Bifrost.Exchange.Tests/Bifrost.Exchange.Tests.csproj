@@ -4,6 +4,7 @@
         <OutputType>Exe</OutputType>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+        <RootNamespace>Bifrost.Exchange.Tests</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
@@ -14,6 +15,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\exchange\Bifrost.Exchange.csproj" />
+        <ProjectReference Include="..\..\src\exchange\Exchange.Domain\Bifrost.Exchange.Domain.csproj" />
     </ItemGroup>
 
 </Project>
