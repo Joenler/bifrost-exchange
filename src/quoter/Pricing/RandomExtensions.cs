@@ -1,0 +1,14 @@
+namespace Bifrost.Quoter.Pricing;
+
+/// <summary>
+/// Extension methods for generating random values from normal and uniform distributions.
+/// </summary>
+public static class RandomExtensions
+{
+    public static double NextGaussian(this Random random)
+    {
+        var u1 = 1.0 - random.NextDouble();
+        var u2 = random.NextDouble();
+        return Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Sin(2.0 * Math.PI * u2);
+    }
+}
