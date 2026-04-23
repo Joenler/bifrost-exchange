@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="xunit.v3" />
+        <PackageReference Include="xunit.runner.visualstudio" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\contracts\dotnet\Bifrost.Contracts.Market\Bifrost.Contracts.Market.csproj" />
+        <ProjectReference Include="..\..\contracts\dotnet\Bifrost.Contracts.Auction\Bifrost.Contracts.Auction.csproj" />
+        <ProjectReference Include="..\..\contracts\dotnet\Bifrost.Contracts.Round\Bifrost.Contracts.Round.csproj" />
+        <ProjectReference Include="..\..\contracts\dotnet\Bifrost.Contracts.Events\Bifrost.Contracts.Events.csproj" />
+        <ProjectReference Include="..\..\contracts\dotnet\Bifrost.Contracts.Strategy\Bifrost.Contracts.Strategy.csproj" />
+        <ProjectReference Include="..\..\contracts\dotnet\Bifrost.Contracts.Mc\Bifrost.Contracts.Mc.csproj" />
+        <ProjectReference Include="..\..\src\contracts-internal\Bifrost.Contracts.Internal\Bifrost.Contracts.Internal.csproj" />
+    </ItemGroup>
+
+</Project>
