@@ -270,3 +270,33 @@ jobs:
             exit 1
           fi
           echo "✓ ripgrep fence correctly flags compound ConcurrentDictionary patterns"
+
+  ci-scrub-gsd:
+    name: ci-scrub-gsd
+    # Defense-in-depth GSD-marker scrub: re-runs tools/scrub-gsd.sh on every push/PR
+    # so a bypass via `git commit --no-verify` (which would defeat the pre-commit hook
+    # from tools/install-hooks.sh) still gets caught in CI.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Verify ripgrep
+        run: rg --version
+      - name: Run scrub-gsd.sh
+        run: bash tools/scrub-gsd.sh
+
+  ci-scrub-gsd-negative:
+    name: ci-scrub-gsd-negative
+    # Continuous proof that the scrubber still blocks a planted marker.
+    # Symmetric to ci-lint-fence-negative: protects against a PR that accidentally
+    # (or maliciously) weakens the scanner while leaving it passing on clean trees.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Verify ripgrep
+        run: rg --version
+      - name: Run scrub-gsd-negative.sh
+        run: bash tests/scripts/scrub-gsd-negative.sh
