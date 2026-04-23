@@ -48,7 +48,7 @@ public sealed class SingleWriterStressTests
         var clock = new TestClock();
         var roundStateSource = new ConfigRoundStateSource(
             Bifrost.Exchange.Application.RoundState.RoundState.RoundOpen);
-        var (service, publisher, instruments) = TestHarness.BuildService(clock, roundStateSource);
+        var (service, publisher, instruments, _) = TestHarness.BuildService(clock, roundStateSource);
 
         var instrumentDtos = instruments.Select(ToDto).ToArray();
 

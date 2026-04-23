@@ -19,7 +19,7 @@ namespace Bifrost.Exchange.Tests.Fixtures;
 /// </summary>
 public static class TestHarness
 {
-    public static (ExchangeService Service, CapturingEventPublisher Publisher, IReadOnlyList<InstrumentId> Instruments)
+    public static (ExchangeService Service, CapturingEventPublisher Publisher, IReadOnlyList<InstrumentId> Instruments, InstrumentRegistry Registry)
         BuildService(IClock clock, IRoundStateSource roundStateSource)
     {
         var instruments = TradingCalendar.GenerateInstruments();
@@ -56,6 +56,6 @@ public static class TestHarness
             clock,
             rules);
 
-        return (service, publisher, instruments);
+        return (service, publisher, instruments, registry);
     }
 }
