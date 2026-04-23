@@ -10,6 +10,9 @@
         <Compile Remove="Exchange.Application\**" />
         <None Remove="Exchange.Application\**" />
         <EmbeddedResource Remove="Exchange.Application\**" />
+        <Compile Remove="Exchange.Infrastructure.RabbitMq\**" />
+        <None Remove="Exchange.Infrastructure.RabbitMq\**" />
+        <EmbeddedResource Remove="Exchange.Infrastructure.RabbitMq\**" />
     </ItemGroup>
 
     <ItemGroup>
