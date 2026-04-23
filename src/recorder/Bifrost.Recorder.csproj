@@ -1,7 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <RootNamespace>Bifrost.Recorder</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="Migrations\*.sql" />
+    </ItemGroup>
+
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.Hosting" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+        <PackageReference Include="Microsoft.Data.Sqlite" />
+        <PackageReference Include="Dapper" />
     </ItemGroup>
 
     <ItemGroup>
