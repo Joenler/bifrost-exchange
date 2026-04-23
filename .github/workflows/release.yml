@@ -1,0 +1,103 @@
+# Tag-triggered release workflow.
+#
+# Triggered on: `git push origin v<MAJOR>.<MINOR>.<PATCH>[-<PRE>]`.
+# Produces: 6 .nupkg (one per Bifrost.Contracts.<Surface>) + 1 bifrost_contracts-*.whl,
+#           all attached to a GitHub Release named after the tag.
+#
+# NOT triggered on main-branch merges — SemVer discipline is enforced by the
+# tag-push convention. Version derives from the tag (strip leading `v`).
+
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # required for gh release create / upload via default GITHUB_TOKEN
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Derive version from tag
+        id: version
+        run: |
+          # refs/tags/v1.0.0 -> GITHUB_REF_NAME=v1.0.0 -> version=1.0.0
+          # refs/tags/v1.0.0-alpha.1 -> version=1.0.0-alpha.1 (valid SemVer + NuGet + PEP 440)
+          version="${GITHUB_REF_NAME#v}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: ${version}"
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Build and pack all Bifrost.Contracts.* NuGet packages
+        run: |
+          mkdir -p "${{ runner.temp }}/nupkgs"
+          for csproj in contracts/dotnet/Bifrost.Contracts.*/Bifrost.Contracts.*.csproj; do
+            echo "Packing: ${csproj}"
+            dotnet pack "${csproj}" -c Release \
+              -p:Version=${{ steps.version.outputs.version }} \
+              -p:PackageVersion=${{ steps.version.outputs.version }} \
+              --output "${{ runner.temp }}/nupkgs" \
+              --nologo
+          done
+          echo "Produced NuGet packages:"
+          ls -la "${{ runner.temp }}/nupkgs"
+
+      - name: Regenerate Python bindings, stamp wheel version, build wheel
+        working-directory: contracts/python
+        run: |
+          # Regenerate *_pb2.py / *_pb2.pyi / *_pb2_grpc.py from the six .proto.
+          uv sync
+          bash build.sh
+
+          # Stamp version into pyproject.toml for `uv build --wheel` to pick up.
+          # ubuntu-latest runners use GNU sed, so `sed -i "pattern"` is correct.
+          sed -i "s/^version = .*/version = \"${{ steps.version.outputs.version }}\"/" pyproject.toml
+
+          echo "--- pyproject.toml after stamping ---"
+          grep -E '^(name|version)' pyproject.toml
+
+          # Build the wheel into the shared temp output dir.
+          uv build --wheel --out-dir "${{ runner.temp }}/wheels"
+
+          echo "Produced Python wheels:"
+          ls -la "${{ runner.temp }}/wheels"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "Contracts ${{ steps.version.outputs.version }}" \
+            --notes "Bifrost Contracts ${{ steps.version.outputs.version }} — six NuGet packages + one Python wheel. See contracts/README.md for consumption instructions."
+
+      - name: Upload NuGet + Python assets to the Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.ref_name }}" \
+            "${{ runner.temp }}"/nupkgs/*.nupkg \
+            "${{ runner.temp }}"/wheels/*.whl
+
+      - name: Summary
+        run: |
+          echo "## Release ${{ github.ref_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 6 NuGet packages" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 1 Python wheel (bifrost_contracts-${{ steps.version.outputs.version }}-py3-none-any.whl)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- All attached to the Release" >> "$GITHUB_STEP_SUMMARY"
