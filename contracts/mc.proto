@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package bifrost.mc.v1;
+
+option csharp_namespace = "Bifrost.Contracts.Mc";
+
+import "round.proto";
+import "events.proto";
+
+message McCommand {
+  string operator_host = 1;                     // logged for audit
+  bool confirm = 2;                             // destructive commands require true
+  bool dry_run = 3;                             // preview without mutating state
+  oneof command {
+    AuctionOpenCmd auction_open = 4;
+    AuctionCloseCmd auction_close = 5;
+    RoundStartCmd round_start = 6;
+    RoundEndCmd round_end = 7;
+    GateCmd gate = 8;
+    SettleCmd settle = 9;
+    NextRoundCmd next_round = 10;
+    PauseCmd pause = 11;
+    ResumeCmd resume = 12;
+    AbortCmd abort = 13;
+    ForecastReviseCmd forecast_revise = 14;
+    RegimeForceCmd regime_force = 15;
+    NewsFireCmd news_fire = 16;
+    NewsPublishCmd news_publish = 17;
+    AlertUrgentCmd alert_urgent = 18;
+    PhysicalShockCmd physical_shock = 19;
+    TeamKickCmd team_kick = 20;
+    TeamResetCmd team_reset = 21;
+    ConfigSetCmd config_set = 22;
+    LeaderboardRevealCmd leaderboard_reveal = 23;
+    EventEndCmd event_end = 24;
+  }
+}
+
+message AuctionOpenCmd { int32 round_number = 1; }
+message AuctionCloseCmd { int32 round_number = 1; }
+message RoundStartCmd { int32 round_number = 1; }
+message RoundEndCmd { int32 round_number = 1; }
+message GateCmd { int32 round_number = 1; }
+message SettleCmd { int32 round_number = 1; }
+message NextRoundCmd {}
+message PauseCmd {}
+message ResumeCmd {}
+message AbortCmd { string reason = 1; }
+message ForecastReviseCmd { int64 new_forecast_price_ticks = 1; string reason = 2; }
+message RegimeForceCmd { bifrost.events.v1.Regime regime = 1; }
+message NewsFireCmd { string library_key = 1; }
+message NewsPublishCmd { string text = 1; }
+message AlertUrgentCmd { string text = 1; }
+message PhysicalShockCmd { int32 mw = 1; string label = 2; bifrost.events.v1.ShockPersistence persistence = 3; }
+message TeamKickCmd { string team_name = 1; }
+message TeamResetCmd { string team_name = 1; }
+message ConfigSetCmd { string path = 1; string value = 2; }
+message LeaderboardRevealCmd {}
+message EventEndCmd {}
+
+message McCommandResult {
+  bool success = 1;
+  string message = 2;
+  bifrost.round.v1.RoundState new_state = 3;
+  string dry_run_payload = 4;                   // populated when dry_run=true
+}
