@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Bifrost.Exchange.Application</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Exchange.Domain\Bifrost.Exchange.Domain.csproj" />
+    <ProjectReference Include="..\..\contracts-internal\Bifrost.Contracts.Internal\Bifrost.Contracts.Internal.csproj" />
+    <ProjectReference Include="..\..\common\Bifrost.Time\Bifrost.Time.csproj" />
+  </ItemGroup>
+</Project>
