@@ -8,6 +8,7 @@
 | `QuotableRange.cs`         | `src/trader/ArenaTrader.Core/QuotableRange.cs`                   | `cf72124776782aa67ad0a6e9b556a90804be7fcb` | Namespace `ArenaTrader.Core` → `Bifrost.Quoter.Pricing`.                                                                                                                           |
 | `HittableRange.cs`         | `src/trader/ArenaTrader.Core/HittableRange.cs`                   | `cf72124776782aa67ad0a6e9b556a90804be7fcb` | Namespace `ArenaTrader.Core` → `Bifrost.Quoter.Pricing`.                                                                                                                           |
 | `SideBias.cs`              | `src/trader/ArenaTrader.Core/SideBias.cs`                        | `cf72124776782aa67ad0a6e9b556a90804be7fcb` | Namespace `ArenaTrader.Core` → `Bifrost.Quoter.Pricing`.                                                                                                                           |
+| `CorrelationId.cs`         | `src/trader/ArenaTrader.Core/CorrelationId.cs`                   | `655581c7045ca107aef9a92778bb8c4368919a4e` | Namespace `ArenaTrader.Core` → `Bifrost.Quoter.Pricing`. Body verbatim. Co-donated alongside the IOrderContext shim consumers; Phase 02 Exchange.Domain did not absorb it.        |
 
 ## Divergence rationale
 
