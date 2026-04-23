@@ -1,0 +1,22 @@
+# BIFROST gRPC wire contracts — buf lint + breaking-change configuration.
+#
+# - version v2 (current stable at authoring).
+# - DEFAULT lint tier covers PACKAGE_DEFINED, MESSAGE_PASCAL_CASE,
+#   FIELD_LOWER_SNAKE_CASE, ENUM_VALUE_PREFIX, FILE_LOWER_SNAKE_CASE,
+#   and the `<PREFIX>_UNSPECIFIED = 0` convention (D-07).
+# - FILE breaking-change scope: catches field-type changes, deleted fields
+#   without `reserved`, enum value changes, field number changes, and oneof
+#   membership changes (D-08). Reference tag resolved at CI run-time via
+#   `git describe --tags --abbrev=0 --match 'v*.*.*'` in the CI step.
+# - No `buf.gen.yaml`: codegen is handled by `Grpc.Tools` (.NET, MSBuild)
+#   and `grpcio-tools` (Python, CI). See contracts/README.md.
+
+version: v2
+modules:
+  - path: .
+lint:
+  use:
+    - DEFAULT
+breaking:
+  use:
+    - FILE
