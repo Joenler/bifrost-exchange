@@ -79,6 +79,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "contracts-internal", "contr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bifrost.Contracts.Internal", "src\contracts-internal\Bifrost.Contracts.Internal\Bifrost.Contracts.Internal.csproj", "{46FD6D97-21C8-4E27-BEFE-5A73CE05F47F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bifrost.Contracts.Roundtrip.Tests", "tests\Bifrost.Contracts.Roundtrip.Tests\Bifrost.Contracts.Roundtrip.Tests.csproj", "{51018DB9-DD9A-4530-BA09-207D78AAC903}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -377,6 +379,18 @@ Global
 		{46FD6D97-21C8-4E27-BEFE-5A73CE05F47F}.Release|x64.Build.0 = Release|Any CPU
 		{46FD6D97-21C8-4E27-BEFE-5A73CE05F47F}.Release|x86.ActiveCfg = Release|Any CPU
 		{46FD6D97-21C8-4E27-BEFE-5A73CE05F47F}.Release|x86.Build.0 = Release|Any CPU
+		{51018DB9-DD9A-4530-BA09-207D78AAC903}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{51018DB9-DD9A-4530-BA09-207D78AAC903}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{51018DB9-DD9A-4530-BA09-207D78AAC903}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{51018DB9-DD9A-4530-BA09-207D78AAC903}.Debug|x64.Build.0 = Debug|Any CPU
+		{51018DB9-DD9A-4530-BA09-207D78AAC903}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{51018DB9-DD9A-4530-BA09-207D78AAC903}.Debug|x86.Build.0 = Debug|Any CPU
+		{51018DB9-DD9A-4530-BA09-207D78AAC903}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{51018DB9-DD9A-4530-BA09-207D78AAC903}.Release|Any CPU.Build.0 = Release|Any CPU
+		{51018DB9-DD9A-4530-BA09-207D78AAC903}.Release|x64.ActiveCfg = Release|Any CPU
+		{51018DB9-DD9A-4530-BA09-207D78AAC903}.Release|x64.Build.0 = Release|Any CPU
+		{51018DB9-DD9A-4530-BA09-207D78AAC903}.Release|x86.ActiveCfg = Release|Any CPU
+		{51018DB9-DD9A-4530-BA09-207D78AAC903}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -417,5 +431,6 @@ Global
 		{4DF73C94-9058-48A8-8F44-5657FD312C47} = {FC73EE1F-B9D5-AEED-D3B5-FA50EDF610AE}
 		{82E789F8-08B8-43E0-80A9-BAE3880B7CDB} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{46FD6D97-21C8-4E27-BEFE-5A73CE05F47F} = {82E789F8-08B8-43E0-80A9-BAE3880B7CDB}
+		{51018DB9-DD9A-4530-BA09-207D78AAC903} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

@@ -1,0 +1,19 @@
+[project]
+name = "bifrost-contracts-roundtrip-harness"
+version = "0.0.0"
+description = "Python subprocess harness for CONT-04 polyglot byte-equivalence tests."
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = [
+    "bifrost_contracts",
+    "protobuf>=5.29.0",
+]
+
+# bifrost_contracts is resolved as an editable path dep into the sibling
+# ../python surface. That surface's build.sh materialises every
+# bifrost_contracts/<surface>/<surface>_pb2.py binding at generation time;
+# editable install ensures the harness always imports whatever bindings the
+# last `bash ../python/build.sh` run produced — no wheel rebuild required
+# between proto edits.
+[tool.uv.sources]
+bifrost_contracts = { path = "../python", editable = true }
