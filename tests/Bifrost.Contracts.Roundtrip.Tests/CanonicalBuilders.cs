@@ -17,7 +17,7 @@ namespace Bifrost.Contracts.Roundtrip.Tests;
 ///
 /// Every entry in <see cref="EveryRoundtripTarget"/> corresponds 1:1 with a
 /// row in contracts/roundtrip/harness.py's TYPE_MAP; the test driver matches
-/// them by string identity. See 01-07-PLAN.md for the D-10 coverage contract.
+/// them by string identity.
 ///
 /// Subprocess contract (RoundtripTheories.cs):
 ///   - C# builds a message here, serialises to bytes, writes to a tempfile.
