@@ -1,0 +1,163 @@
+syntax = "proto3";
+
+package bifrost.strategy.v1;
+
+option csharp_namespace = "Bifrost.Contracts.Strategy";
+
+import "market.proto";
+import "auction.proto";
+import "round.proto";
+import "events.proto";
+
+service StrategyGateway {
+  rpc StreamStrategy (stream StrategyCommand) returns (stream MarketEvent);
+}
+
+// Client → server
+message StrategyCommand {
+  oneof command {
+    Register register = 1;
+    OrderSubmit order_submit = 2;
+    OrderCancel order_cancel = 3;
+    OrderReplace order_replace = 4;
+    BidMatrixSubmit bid_matrix_submit = 5;
+  }
+}
+
+message Register {
+  string team_name = 1;               // free-form UTF-8
+  int64 last_seen_sequence = 2;       // 0 = fresh connect; nonzero = resume
+}
+
+message OrderSubmit {
+  string client_id = 1;                         // assigned on RegisterAck; echoed for correlation
+  bifrost.market.v1.Instrument instrument = 2;
+  bifrost.market.v1.Side side = 3;
+  bifrost.market.v1.OrderType order_type = 4;
+  int64 price_ticks = 5;                        // ignored for Market / priceless variants
+  int64 quantity_ticks = 6;
+  int64 display_slice_ticks = 7;                // 0 = no iceberg slicing
+  string client_order_id = 8;                   // team-supplied correlation key
+}
+
+message OrderCancel {
+  string client_id = 1;
+  int64 order_id = 2;
+  bifrost.market.v1.Instrument instrument = 3;
+}
+
+message OrderReplace {
+  string client_id = 1;
+  int64 order_id = 2;
+  int64 new_price_ticks = 3;                    // 0 = leave unchanged
+  int64 new_quantity_ticks = 4;                 // 0 = leave unchanged
+  bifrost.market.v1.Instrument instrument = 5;
+}
+
+message BidMatrixSubmit {
+  bifrost.auction.v1.BidMatrix matrix = 1;
+}
+
+// Server → client
+message MarketEvent {
+  int64 sequence = 1;        // monotonic per-team envelope sequence
+  int64 timestamp_ns = 2;
+  oneof event {
+    RegisterAck register_ack = 3;
+    BookUpdate book_update = 4;
+    Trade trade = 5;
+    ForecastUpdate forecast_update = 6;
+    bifrost.events.v1.Event public_event = 7;     // wraps RegimeChange / News / PhysicalShock / etc.
+    OrderAck order_ack = 8;
+    OrderReject order_reject = 9;
+    Fill fill = 10;
+    bifrost.round.v1.RoundState round_state = 11;
+    Scorecard scorecard = 12;
+    PositionSnapshot position_snapshot = 13;
+  }
+}
+
+message RegisterAck {
+  string client_id = 1;
+  bifrost.round.v1.RoundState current_round_state = 2;
+  int64 resumed_from_sequence = 3;              // resume point; 0 on fresh connect
+  bool reregister_required = 4;                 // sequence outside ring buffer
+}
+
+message BookUpdate {
+  bifrost.market.v1.Instrument instrument = 1;
+  bifrost.market.v1.BookView book = 2;
+}
+
+message Trade {
+  bifrost.market.v1.Instrument instrument = 1;
+  int64 trade_id = 2;
+  int64 price_ticks = 3;
+  int64 quantity_ticks = 4;
+  bifrost.market.v1.Side aggressor_side = 5;
+  int64 sequence = 6;
+}
+
+message ForecastUpdate {
+  int64 forecast_price_ticks = 1;               // scalar only; confidence not exposed
+  int64 horizon_ns = 2;                         // prediction target; typically gate_ns
+}
+
+message OrderAck {
+  string client_order_id = 1;
+  int64 order_id = 2;
+  bifrost.market.v1.Instrument instrument = 3;
+}
+
+// Typed reject reasons. Every fair-play guard or gate-closure failure decodes
+// to one of these; strategies branch on the enum, not the string detail.
+enum RejectReason {
+  REJECT_REASON_UNSPECIFIED = 0;
+  REJECT_REASON_STRUCTURAL = 1;                 // malformed message
+  REJECT_REASON_RATE_LIMITED = 2;               // OTR or message-rate timeout
+  REJECT_REASON_MAX_OPEN_ORDERS = 3;
+  REJECT_REASON_MAX_NOTIONAL = 4;
+  REJECT_REASON_MAX_POSITION = 5;
+  REJECT_REASON_SELF_TRADE = 6;
+  REJECT_REASON_EXCHANGE_CLOSED = 7;            // gate closed
+  REJECT_REASON_INSUFFICIENT_LIQUIDITY = 8;
+  REJECT_REASON_ORDER_NOT_FOUND = 9;
+  REJECT_REASON_INVALID_REPLACE = 10;
+  REJECT_REASON_UNKNOWN_INSTRUMENT = 11;
+  REJECT_REASON_REREGISTER_REQUIRED = 12;
+}
+
+message OrderReject {
+  string client_order_id = 1;                   // empty when the reject is not order-scoped
+  RejectReason reason = 2;
+  string detail = 3;                            // human-readable; not scored
+}
+
+message Fill {
+  string client_id = 1;
+  bifrost.market.v1.Instrument instrument = 2;
+  int64 order_id = 3;
+  int64 trade_id = 4;
+  int64 price_ticks = 5;
+  int64 filled_quantity_ticks = 6;
+  int64 remaining_quantity_ticks = 7;
+  bifrost.market.v1.Side side = 8;
+  bool is_aggressor = 9;
+  int64 fee_ticks = 10;                         // fees in same tick denomination
+}
+
+message PositionSnapshot {
+  bifrost.market.v1.Instrument instrument = 1;
+  int64 net_position_ticks = 2;
+  int64 average_price_ticks = 3;
+  int64 open_orders_notional_ticks = 4;
+}
+
+message Scorecard {
+  int32 round_number = 1;
+  int64 trade_pnl_ticks = 2;
+  int64 imbalance_pnl_ticks = 3;
+  int64 fees_ticks = 4;
+  int64 otr_penalty_ticks = 5;
+  int64 total_ticks = 6;
+}
