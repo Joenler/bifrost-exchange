@@ -28,6 +28,7 @@ public sealed class OrderBook(InstrumentId instrumentId)
     {
         var levels = order.Side == Side.Buy ? _bids : _asks;
 
+        // bifrost-lint: compound-ok — SortedDictionary (not ConcurrentDictionary) accessed by single-writer MatchingEngine
         if (!levels.TryGetValue(order.Price, out var level))
         {
             level = new PriceLevel(order.Price);
