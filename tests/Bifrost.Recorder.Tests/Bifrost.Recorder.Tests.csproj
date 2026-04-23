@@ -4,16 +4,20 @@
         <OutputType>Exe</OutputType>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+        <RootNamespace>Bifrost.Recorder.Tests</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="xunit.v3" />
         <PackageReference Include="xunit.runner.visualstudio" />
+        <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\recorder\Bifrost.Recorder.csproj" />
+        <ProjectReference Include="..\..\src\common\Bifrost.Time\Bifrost.Time.csproj" />
     </ItemGroup>
 
 </Project>
