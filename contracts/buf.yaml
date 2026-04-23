@@ -5,12 +5,20 @@
 #   FIELD_LOWER_SNAKE_CASE, ENUM_VALUE_PREFIX, FILE_LOWER_SNAKE_CASE,
 #   and the `<PREFIX>_UNSPECIFIED = 0` convention (D-07).
 #   (STANDARD is the successor name for DEFAULT; identical rules, no deprecation warning.)
-# - The `except:` list below drops four stylistic rules that would force
+# - The `except:` list below drops five stylistic rules that would force
 #   structural refactors unrelated to wire safety:
-#     * PACKAGE_DIRECTORY_MATCH / PACKAGE_SAME_DIRECTORY — contracts/ uses
-#       a flat layout matching Arena's `protos/` convention; buf wants
-#       `contracts/bifrost/<surface>/v1/<surface>.proto` nesting. Wire
-#       correctness does not depend on directory shape.
+#     * PACKAGE_DIRECTORY_MATCH — buf wants files in a directory matching
+#       the package name (`contracts/bifrost/<surface>/v1/<surface>.proto`).
+#       Our flat layout matches Arena's `protos/` convention; directory
+#       shape is orthogonal to wire correctness.
+#     * DIRECTORY_SAME_PACKAGE — buf wants all files in one directory to
+#       share a single package. Our six protos intentionally declare six
+#       separate per-surface packages (D-06) while living together in
+#       `contracts/`; splitting them into six subdirectories would force
+#       every .NET `<Protobuf Include>` path and every Python protoc
+#       invocation to be rewritten.
+#     * PACKAGE_SAME_DIRECTORY — retained defensively (inverse of the
+#       above; harmless to list).
 #     * RPC_REQUEST_STANDARD_NAME / RPC_RESPONSE_STANDARD_NAME — BIFROST
 #       uses semantic oneof-container names (`StrategyCommand`, `MarketEvent`)
 #       rather than the `{RpcName}Request/{RpcName}Response` pattern.
@@ -31,6 +39,7 @@ lint:
     - STANDARD
   except:
     - PACKAGE_DIRECTORY_MATCH
+    - DIRECTORY_SAME_PACKAGE
     - PACKAGE_SAME_DIRECTORY
     - RPC_REQUEST_STANDARD_NAME
     - RPC_RESPONSE_STANDARD_NAME
