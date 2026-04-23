@@ -18,7 +18,9 @@ public readonly record struct DeliveryPeriod
             throw new ArgumentException($"Delivery period duration must be exactly 15 or 60 minutes, was {duration.TotalMinutes} minutes.");
     }
 
-    public bool HasExpired(DateTimeOffset utcNow) => utcNow >= End;
+    // Intraday products stop being tradable at delivery Start (physical delivery begins — position locks).
+    // End is the close of the physical delivery window, not the trading horizon.
+    public bool HasExpired(DateTimeOffset utcNow) => utcNow >= Start;
 
     public override string ToString() => $"{Start:yyyyMMddHHmm}-{End:yyyyMMddHHmm}";
 }
