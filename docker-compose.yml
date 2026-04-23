@@ -19,7 +19,7 @@ services:
       dockerfile: src/exchange/Dockerfile
     depends_on:
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s
@@ -103,7 +103,7 @@ services:
       dockerfile: src/recorder/Dockerfile
     depends_on:
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s
