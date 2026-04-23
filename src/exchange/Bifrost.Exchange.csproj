@@ -1,5 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
+    <!-- Exclude sibling Exchange.Domain project's sources/artifacts so the default
+         recursive **/*.cs globs do not compile them into this host Worker assembly.
+         Bifrost.Exchange.Domain.csproj owns its own compile scope. -->
+    <ItemGroup>
+        <Compile Remove="Exchange.Domain\**" />
+        <None Remove="Exchange.Domain\**" />
+        <EmbeddedResource Remove="Exchange.Domain\**" />
+    </ItemGroup>
+
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.Hosting" />
     </ItemGroup>
