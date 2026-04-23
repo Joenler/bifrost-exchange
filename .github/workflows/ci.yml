@@ -181,6 +181,46 @@ jobs:
         run: dotnet build Bifrost.sln -c Release --nologo
       - name: ripgrep ConcurrentDictionary compound-op rule (src/)
         run: bash .github/scripts/lint-concurrent-dictionary.sh src
+      - name: Forbid google.protobuf.Timestamp in contracts/*.proto
+        # D-02 + RESEARCH §12 Pitfall B: BIFROST uses int64 timestamp_ns on the gRPC wire;
+        # google.protobuf.Timestamp is forbidden (would reintroduce JavaScript-precision-loss
+        # class on the spectator dashboard and break parity with Arena's internal TimestampNs long).
+        run: |
+          if grep -E 'google\.protobuf\.Timestamp|import.*google/protobuf/timestamp' contracts/*.proto 2>/dev/null; then
+            echo "::error::google.protobuf.Timestamp is forbidden (D-02). Use int64 timestamp_ns."
+            exit 1
+          fi
+          echo "OK: No google.protobuf.Timestamp in contracts/*.proto"
+      - name: GSD-marker absence in src/contracts-internal/
+        # RESEARCH §7.5: Arena fork (src/contracts-internal/) must not introduce GSD planning
+        # traces. The main lint fence scans src/ broadly via BannedApiAnalyzers, but GSD-marker
+        # detection is grep-based and scoped here to the donated tree.
+        run: |
+          if grep -rEn '(Phase [0-9]+|REQ-[A-Z]+-[0-9]+|PLAN\.md|\.planning/)' src/contracts-internal/ --include='*.cs' --exclude-dir='obj' --exclude-dir='bin' 2>/dev/null; then
+            echo "::error::GSD markers found in src/contracts-internal/ — Arena fork must not introduce planning traces."
+            exit 1
+          fi
+          echo "OK: No GSD markers in src/contracts-internal/**/*.cs"
+      - name: Setup buf CLI
+        uses: bufbuild/buf-action@v1
+        with:
+          setup_only: true
+      - name: buf lint (contracts/)
+        working-directory: contracts
+        run: buf lint
+      - name: buf breaking (contracts/ vs last v*.*.* tag)
+        # D-08 + RESEARCH §4.4: resolve the baseline tag at runtime; trivially pass when no
+        # prior v*.*.* tag exists (pre-v1 baseline). Every subsequent PR that would break wire
+        # without a major version bump is blocked.
+        run: |
+          cd contracts
+          LATEST_TAG=$(git describe --tags --abbrev=0 --match 'v*.*.*' 2>/dev/null || echo "")
+          if [ -n "$LATEST_TAG" ]; then
+            echo "Running buf breaking against $LATEST_TAG"
+            buf breaking --against ".git#tag=$LATEST_TAG"
+          else
+            echo "::notice::No prior v*.*.* tag yet; buf breaking skipped (pre-v1 baseline)."
+          fi
 
   ci-lint-fence-negative:
     name: ci-lint-fence-negative
