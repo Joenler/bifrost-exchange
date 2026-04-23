@@ -83,6 +83,59 @@ for s in "${SURFACES[@]}"; do
     fi
 done
 
+# Step 2c: rewrite cross-surface imports to match the flat-per-surface layout.
+#
+# Context: grpc_tools.protoc emits top-level-style imports regardless of
+# --python_out depth. When strategy.proto imports market.proto, the generated
+# strategy_pb2.py contains:
+#
+#     import market_pb2 as market__pb2
+#
+# After flattening into bifrost_contracts/strategy/strategy_pb2.py, that plain
+# import can no longer resolve (market_pb2 lives at
+# bifrost_contracts/market/market_pb2.py, not sys.path top level). Without this
+# rewrite the package imports at all, and Plan 01-07's CONT-04 harness blocks
+# at `from bifrost_contracts.strategy import strategy_pb2`.
+#
+# We use Python for portability (sed -i has incompatible macOS vs GNU syntax).
+# Rewrites:
+#   - cross-surface: `import <X>_pb2 as <X>__pb2`
+#                 →  `from bifrost_contracts.<X> import <X>_pb2 as <X>__pb2`
+#     (applied in <surface>_pb2.py files only)
+#   - same-surface: `import <same>_pb2 as <same>__pb2` in <same>_pb2_grpc.py
+#                 →  `from . import <same>_pb2 as <same>__pb2`
+uv run python - <<'PYEOF'
+import re
+from pathlib import Path
+
+SURFACES = ["market", "strategy", "auction", "round", "events", "mc"]
+ROOT = Path("bifrost_contracts")
+
+for own in SURFACES:
+    # Rewrite cross-surface imports inside <own>/<own>_pb2.py
+    pb2 = ROOT / own / f"{own}_pb2.py"
+    if pb2.exists():
+        text = pb2.read_text()
+        for other in SURFACES:
+            if other == own:
+                continue
+            pattern = rf"^import {other}_pb2 as {other}__pb2$"
+            replacement = f"from bifrost_contracts.{other} import {other}_pb2 as {other}__pb2"
+            text = re.sub(pattern, replacement, text, flags=re.MULTILINE)
+        pb2.write_text(text)
+
+    # Rewrite same-surface import inside <own>/<own>_pb2_grpc.py
+    grpc_pb2 = ROOT / own / f"{own}_pb2_grpc.py"
+    if grpc_pb2.exists():
+        text = grpc_pb2.read_text()
+        pattern = rf"^import {own}_pb2 as {own}__pb2$"
+        replacement = f"from . import {own}_pb2 as {own}__pb2"
+        text = re.sub(pattern, replacement, text, flags=re.MULTILINE)
+        grpc_pb2.write_text(text)
+
+print("OK: cross-surface imports rewritten for flat layout")
+PYEOF
+
 # Step 3: delete the empty bifrost_contracts/bifrost/ subtree (if it exists).
 if [ -d "bifrost_contracts/bifrost" ]; then
     rm -rf "bifrost_contracts/bifrost"
