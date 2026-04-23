@@ -9,7 +9,7 @@ import "auction.proto";
 import "round.proto";
 import "events.proto";
 
-service StrategyGateway {
+service StrategyGatewayService {
   rpc StreamStrategy (stream StrategyCommand) returns (stream MarketEvent);
 }
 
