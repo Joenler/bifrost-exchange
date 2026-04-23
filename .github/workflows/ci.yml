@@ -56,6 +56,14 @@ jobs:
             path: bigscreen
           - slot: aggregate-integration
             kind: aggregate
+          - slot: contracts-roundtrip
+            kind: polyglot
+            path: contracts
+            dotnet_project: tests/Bifrost.Contracts.Roundtrip.Tests
+          - slot: contracts-translation
+            kind: dotnet-xlang
+            path: src/contracts-internal
+            dotnet_project: tests/Bifrost.Contracts.Translation.Tests
 
     steps:
       - uses: actions/checkout@v4
@@ -119,6 +127,42 @@ jobs:
             exit 1
           fi
           docker compose down --timeout 10
+
+      - name: Setup .NET 10 (polyglot + dotnet-xlang)
+        if: matrix.kind == 'polyglot' || matrix.kind == 'dotnet-xlang'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Python 3.12 (polyglot only)
+        if: matrix.kind == 'polyglot'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup uv (polyglot only)
+        if: matrix.kind == 'polyglot'
+        uses: astral-sh/setup-uv@v4
+
+      - name: Generate Python bindings (polyglot only)
+        if: matrix.kind == 'polyglot'
+        working-directory: contracts/python
+        run: |
+          uv sync
+          bash build.sh
+
+      - name: Sync harness uv environment (polyglot only)
+        if: matrix.kind == 'polyglot'
+        working-directory: contracts/roundtrip
+        run: uv sync
+
+      - name: Run polyglot round-trip tests (CONT-04)
+        if: matrix.kind == 'polyglot'
+        run: dotnet test ${{ matrix.dotnet_project }} -c Release --nologo
+
+      - name: Run translation round-trip tests (CONT-07)
+        if: matrix.kind == 'dotnet-xlang'
+        run: dotnet test ${{ matrix.dotnet_project }} -c Release --nologo
 
   ci-lint:
     name: ci-lint
