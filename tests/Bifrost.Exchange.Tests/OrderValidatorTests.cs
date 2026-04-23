@@ -1,9 +1,11 @@
 using Bifrost.Contracts.Internal;
 using Bifrost.Contracts.Internal.Commands;
 using Bifrost.Exchange.Application;
+using Bifrost.Exchange.Application.RoundState;
 using Bifrost.Exchange.Domain;
 using Bifrost.Time;
 using Xunit;
+using RoundStateEnum = Bifrost.Exchange.Application.RoundState.RoundState;
 
 namespace Bifrost.Exchange.Tests;
 
@@ -33,7 +35,11 @@ public sealed class OrderValidatorTests
             TakerFeeRate: 0.02m,
             PriceScale: 10);
         var clock = new SystemClock();
-        return new OrderValidator(rules, registry, clock);
+        // RoundOpen source so the gate guard stays transparent to these wave-0 tests —
+        // every reject code asserted here is a downstream validation concern, not the
+        // D-10 ExchangeClosed guard. Dedicated gate coverage lives in RoundStateGateTests.
+        var roundStateSource = new ConfigRoundStateSource(RoundStateEnum.RoundOpen);
+        return new OrderValidator(rules, registry, clock, roundStateSource);
     }
 
     private static InstrumentIdDto KnownInstrumentDto()

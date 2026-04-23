@@ -56,3 +56,34 @@ git rev-parse HEAD   # confirm Arena has not advanced since the date above
 ```
 
 Re-run at port time; overwrite the SHA above if Arena has advanced since the donation date.
+
+## RoundState seam extension (2026-04-23)
+
+`OrderValidator.cs` received a BIFROST-native extension as part of the RoundState
+seam (a D-07 / D-08 / D-10 construct with no Arena analog):
+
+- Primary ctor gained a 4th parameter `IRoundStateSource roundStateSource`.
+- `ValidateSubmit` and `ValidateReplace` prepend a gate-guard returning
+  `RejectionCode.ExchangeClosed` with a `reason_detail` string whenever
+  `roundStateSource.Current != RoundOpen`.
+- `ValidateCancel` is unchanged (D-09 — cancels remain valid in every RoundState
+  for mass-cancel-on-disconnect compatibility per ADR-0004 GW-07).
+- A private helper `ReasonDetailFor(RoundState)` maps the 7 enum values to D-11
+  `reason_detail` strings: `round_not_started` / `auction_phase` (shared by
+  AuctionOpen and AuctionClosed) / `gate_reached` / `round_settled` / `aborted`
+  / `ok`.
+- New usings: `Bifrost.Exchange.Application.RoundState` plus a
+  `RoundStateEnum = Bifrost.Exchange.Application.RoundState.RoundState` alias
+  that disambiguates the enum type from its containing namespace (both are named
+  `RoundState`).
+
+The 4-file `RoundState/` subfolder (`RoundState.cs`, `IRoundStateSource.cs`,
+`ConfigRoundStateSource.cs` in production, plus the test-only
+`InMemoryRoundStateSource.cs` in the tests project) is BIFROST-invented. No
+Arena analog exists — Arena has no round-lifecycle concept because it runs
+continuous mock trading. The seam is the boundary Phase 06 will swap against
+when the RabbitMQ-backed round-state publisher lands.
+
+The Domain layer (`Bifrost.Exchange.Domain`) intentionally has zero references
+to `RoundState` — matcher stays RoundState-unaware per D-10. The validator is
+the sole enforcement site.

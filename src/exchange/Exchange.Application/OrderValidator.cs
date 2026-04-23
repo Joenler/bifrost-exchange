@@ -1,16 +1,25 @@
 using Bifrost.Contracts.Internal.Commands;
+using Bifrost.Exchange.Application.RoundState;
 using Bifrost.Exchange.Domain;
 using Bifrost.Time;
+using RoundStateEnum = Bifrost.Exchange.Application.RoundState.RoundState;
 
 namespace Bifrost.Exchange.Application;
 
 public sealed class OrderValidator(
     ExchangeRulesConfig rules,
     InstrumentRegistry registry,
-    IClock clock)
+    IClock clock,
+    IRoundStateSource roundStateSource)
 {
     public OrderValidationResult ValidateSubmit(SubmitOrderCommand cmd)
     {
+        // D-10 gate guard — reject new-order commands whenever the exchange is not RoundOpen.
+        // Cancel bypasses this guard entirely (D-09 / ADR-0004 mass-cancel-on-disconnect).
+        var rs = roundStateSource.Current;
+        if (rs != RoundStateEnum.RoundOpen)
+            return OrderValidationResult.Rejected(RejectionCode.ExchangeClosed, ReasonDetailFor(rs));
+
         if (!Enum.TryParse<Side>(cmd.Side, true, out var side))
             return OrderValidationResult.Rejected(RejectionCode.InvalidSide, $"Invalid side: {cmd.Side}");
 
@@ -70,6 +79,11 @@ public sealed class OrderValidator(
 
     public OrderValidationResult ValidateReplace(ReplaceOrderCommand cmd)
     {
+        // D-10 gate guard — treated like a new-order command (D-09: Replace = cancel+submit atomically).
+        var rs = roundStateSource.Current;
+        if (rs != RoundStateEnum.RoundOpen)
+            return OrderValidationResult.Rejected(RejectionCode.ExchangeClosed, ReasonDetailFor(rs));
+
         var instrumentId = InstrumentIdMapping.ToDomain(cmd.InstrumentId);
 
         var engine = registry.TryGet(instrumentId);
@@ -96,4 +110,25 @@ public sealed class OrderValidator(
 
         return OrderValidationResult.Valid(default, default, instrumentId, engine);
     }
+
+    // D-11 reason_detail vocabulary — callers embed this string as the RejectionReason sidecar
+    // on the ExchangeClosed reject. Planner's discretion from the phase decision log:
+    //   IterationOpen -> round_not_started
+    //   AuctionOpen   -> auction_phase     (shared with AuctionClosed intentionally — single
+    //   AuctionClosed -> auction_phase      vocabulary term for "auction is in flight, not trading")
+    //   Gate          -> gate_reached
+    //   Settled       -> round_settled
+    //   Aborted       -> aborted
+    //   RoundOpen     -> ok                (unreachable on the reject path; kept exhaustive)
+    private static string ReasonDetailFor(RoundStateEnum rs) => rs switch
+    {
+        RoundStateEnum.IterationOpen => "round_not_started",
+        RoundStateEnum.AuctionOpen => "auction_phase",
+        RoundStateEnum.AuctionClosed => "auction_phase",
+        RoundStateEnum.Gate => "gate_reached",
+        RoundStateEnum.Settled => "round_settled",
+        RoundStateEnum.Aborted => "aborted",
+        RoundStateEnum.RoundOpen => "ok",
+        _ => "unknown",
+    };
 }
