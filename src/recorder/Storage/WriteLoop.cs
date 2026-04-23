@@ -71,6 +71,22 @@ public sealed class WriteLoop : BackgroundService
                 catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
                 {
                 }
+                catch (ChannelClosedException)
+                {
+                    // Consumer.StopAsync may complete the writer before this loop
+                    // observes stoppingToken cancellation (ordering depends on
+                    // Host shutdown service order). Treat as a clean shutdown
+                    // signal: drain what remains and exit.
+                    CheckBackpressure();
+                    AdjustBatchSize();
+                    if (batch.Count > 0)
+                    {
+                        FlushBatch(batch);
+                        batch.Clear();
+                    }
+                    DrainRemaining(batch);
+                    return;
+                }
 
                 CheckBackpressure();
                 AdjustBatchSize();

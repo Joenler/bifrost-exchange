@@ -24,7 +24,10 @@ builder.Services.AddSingleton(clock);
 SqlMapper.AddTypeHandler(new DecimalTypeHandler());
 SqlMapper.AddTypeHandler(new BoolTypeHandler());
 
-var sessionsRoot = builder.Configuration["Recorder:SessionsRoot"] ?? "/data/sessions";
+// Default falls back to a /tmp path that is writable by the non-root APP_UID
+// the container images run under. A production LAN deploy overrides this via
+// appsettings.json or an environment variable to a host-bind-mounted volume.
+var sessionsRoot = builder.Configuration["Recorder:SessionsRoot"] ?? "/tmp/bifrost-sessions";
 Directory.CreateDirectory(sessionsRoot);
 
 using var startupLoggerFactory = LoggerFactory.Create(b => b.AddConsole());
