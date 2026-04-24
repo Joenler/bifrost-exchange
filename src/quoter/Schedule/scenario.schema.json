@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bifrost-exchange/scenario.schema.json",
+  "title": "BIFROST Scenario",
+  "type": "object",
+  "required": ["scenario_id", "seed", "beats", "markov_overlay", "regime_params"],
+  "properties": {
+    "scenario_id": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "seed": { "type": "integer" },
+    "beats": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["t_offset_s", "regime", "duration_s"],
+        "properties": {
+          "t_offset_s": { "type": "number", "minimum": 0 },
+          "regime": { "type": "string", "enum": ["CALM", "TRENDING", "VOLATILE", "SHOCK"] },
+          "duration_s": { "type": "number", "exclusiveMinimum": 0 }
+        }
+      }
+    },
+    "markov_overlay": {
+      "type": "object",
+      "required": ["transition_rates_per_s"],
+      "properties": {
+        "transition_rates_per_s": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": { "type": "number", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "regime_params": {
+      "type": "object",
+      "required": ["CALM", "TRENDING", "VOLATILE", "SHOCK"],
+      "additionalProperties": {
+        "type": "object",
+        "required": ["spread_multiplier", "quantity_multiplier", "gbm_drift", "gbm_vol", "kappa"],
+        "properties": {
+          "spread_multiplier": { "type": "number", "exclusiveMinimum": 0 },
+          "quantity_multiplier": { "type": "number", "exclusiveMinimum": 0 },
+          "gbm_drift": { "type": "number" },
+          "gbm_vol": { "type": "number", "minimum": 0 },
+          "kappa": { "type": "number", "exclusiveMinimum": 0 }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "../schemas/scenario.schema.json",
+  "scenario_id": "volatile-opening",
+  "description": "Volatile open settling into calm close -- tests stale-quote-hunting guards and late-round patience",
+  "seed": 424242,
+  "beats": [
+    { "t_offset_s":   0, "regime": "VOLATILE", "duration_s": 120 },
+    { "t_offset_s": 120, "regime": "TRENDING", "duration_s": 240 },
+    { "t_offset_s": 360, "regime": "CALM",     "duration_s": 240 }
+  ],
+  "markov_overlay": {
+    "transition_rates_per_s": {
+      "CALM":     { "TRENDING": 0.002, "VOLATILE": 0.0005 },
+      "TRENDING": { "CALM":     0.003, "VOLATILE": 0.002 },
+      "VOLATILE": { "TRENDING": 0.005, "CALM":     0.001, "SHOCK": 0.0005 },
+      "SHOCK":    { "VOLATILE": 0.008 }
+    }
+  },
+  "regime_params": {
+    "CALM":     { "spread_multiplier": 1.0, "quantity_multiplier": 1.0, "gbm_drift": 0.0,  "gbm_vol": 0.02, "kappa": 1.5 },
+    "TRENDING": { "spread_multiplier": 1.2, "quantity_multiplier": 1.0, "gbm_drift": 0.05, "gbm_vol": 0.03, "kappa": 1.0 },
+    "VOLATILE": { "spread_multiplier": 2.0, "quantity_multiplier": 0.6, "gbm_drift": 0.0,  "gbm_vol": 0.08, "kappa": 0.5 },
+    "SHOCK":    { "spread_multiplier": 4.0, "quantity_multiplier": 0.3, "gbm_drift": 0.0,  "gbm_vol": 0.15, "kappa": 0.2 }
+  }
+}
