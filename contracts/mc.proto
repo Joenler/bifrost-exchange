@@ -51,7 +51,12 @@ message RegimeForceCmd { bifrost.events.v1.Regime regime = 1; }
 message NewsFireCmd { string library_key = 1; }
 message NewsPublishCmd { string text = 1; }
 message AlertUrgentCmd { string text = 1; }
-message PhysicalShockCmd { int32 mw = 1; string label = 2; bifrost.events.v1.ShockPersistence persistence = 3; }
+message PhysicalShockCmd {
+  int32 mw = 1;
+  string label = 2;
+  bifrost.events.v1.ShockPersistence persistence = 3;
+  optional int32 quarter_index = 4;             // v1.1.0: 0..3 targets Q1..Q4; unset rejected at orchestrator boundary
+}
 message TeamKickCmd { string team_name = 1; }
 message TeamResetCmd { string team_name = 1; }
 message ConfigSetCmd { string path = 1; string value = 2; }

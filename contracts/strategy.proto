@@ -74,6 +74,7 @@ message MarketEvent {
     bifrost.round.v1.RoundState round_state = 11;
     Scorecard scorecard = 12;
     PositionSnapshot position_snapshot = 13;
+    bifrost.market.v1.ImbalancePrint imbalance_print = 14;   // v1.1.0: public per-quarter realized imbalance print at Gate
   }
 }
 

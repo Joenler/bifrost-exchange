@@ -71,4 +71,5 @@ message PhysicalShock {
   int32 mw = 1;
   string label = 2;
   ShockPersistence persistence = 3;
+  optional int32 quarter_index = 4;             // v1.1.0: 0..3 targets Q1..Q4
 }

@@ -4,6 +4,8 @@ package bifrost.market.v1;
 
 option csharp_namespace = "Bifrost.Contracts.Market";
 
+import "events.proto";
+
 enum Side {
   SIDE_UNSPECIFIED = 0;
   SIDE_BUY = 1;
@@ -50,4 +52,18 @@ message BookView {
   repeated BookLevel asks = 2;   // lowest price first
   int64 sequence = 3;
   int64 timestamp_ns = 4;
+}
+
+// ImbalancePrint — public per-quarter realized imbalance price, broadcast at
+// Gate. Emitted once per quarter (Q1..Q4) so teams can decompose the
+// aggregate settlement into team-contributed vs physical-shock components.
+message ImbalancePrint {
+  int32 round_number = 1;
+  bifrost.market.v1.Instrument instrument = 2;
+  int32 quarter_index = 3;
+  int64 p_imb_ticks = 4;
+  int64 a_total_ticks = 5;        // A_teams + A_physical, signed
+  int64 a_physical_ticks = 6;     // separately visible for decomposition
+  bifrost.events.v1.Regime regime = 7;
+  int64 timestamp_ns = 8;
 }
