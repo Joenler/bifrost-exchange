@@ -286,10 +286,10 @@ public sealed class SimulatorActorLoop : BackgroundService
                     _state.CurrentRoundNumber, seed);
                 break;
             case RoundState.Gate:
-                // Gate emits 4 ImbalancePrint (one per quarter) — delegated handler.
+                HandleGate(rs.TsNs);
                 break;
             case RoundState.Settled:
-                // Settled emits N×4 ImbalanceSettlement rows — delegated handler.
+                HandleSettled(rs.TsNs);
                 break;
             case RoundState.AuctionOpen:
             case RoundState.AuctionClosed:
@@ -297,6 +297,186 @@ public sealed class SimulatorActorLoop : BackgroundService
                 // No per-state behaviour in the scaffolding scope.
                 break;
         }
+    }
+
+    /// <summary>
+    /// Synthetic-hour anchor for the Phase 04 canonical quarter instruments. Mirrors
+    /// the literal in <c>TradingCalendar.GenerateInstruments()</c> — the physical
+    /// 9999-01-01 start keeps delivery-period expiry far from any plausible test clock
+    /// and is the single reference that Phase 02 and Phase 04 share.
+    /// </summary>
+    private static readonly DateTimeOffset SyntheticHourStart =
+        new DateTimeOffset(9999, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+    private const string DeliveryAreaDe = "DE";
+
+    /// <summary>
+    /// Realize the four imbalance prints at Gate. For each QH 0..3: aggregate the
+    /// non-deny-list teams' net positions, compute P_imb via ADR-0003's pricing engine,
+    /// retain the prices in <see cref="SimulatorState.LastPImbTicksPerQuarter"/> for
+    /// the subsequent Settled arm, then publish one <see cref="ImbalancePrintEvent"/>
+    /// per QH on <c>public.imbalance.print.&lt;instrument_id&gt;</c>. The hour instrument
+    /// never appears here — Q0..Q3 only.
+    /// </summary>
+    private void HandleGate(long tsNs)
+    {
+        _log.LogInformation(
+            "Gate: computing imbalance prices for round {Round}",
+            _state.CurrentRoundNumber);
+
+        var deny = _options.Value.NonSettlementClientIds ?? Array.Empty<string>();
+
+        // 1) Aggregate A_teams per QH across all non-deny-list clients. Quoter and
+        //    dah-auction are filtered here (T-04-24) so the realized price reflects
+        //    only the real-team aggregate.
+        var aTeamsByQh = new long[4];
+        foreach (var (key, pos) in _state.NetPositions)
+        {
+            if (Array.IndexOf(deny, key.ClientId) >= 0)
+            {
+                continue;
+            }
+            if (key.QuarterIndex is < 0 or > 3)
+            {
+                continue;
+            }
+            aTeamsByQh[key.QuarterIndex] = checked(aTeamsByQh[key.QuarterIndex] + pos);
+        }
+
+        // 2) Compute P_imb per QH via the pricing engine. Exactly four calls; each
+        //    consumes one Gaussian draw from the PRNG so byte-identical replays hold.
+        var pimbByQh = new long[4];
+        for (var qh = 0; qh < 4; qh++)
+        {
+            pimbByQh[qh] = _pricing.ComputePImbTicks(
+                quarterIndex: qh,
+                aTeamsTicks: aTeamsByQh[qh],
+                aPhysicalTicks: _state.APhysicalQh[qh],
+                regime: _state.CurrentRegime,
+                rng: _rng);
+        }
+
+        // 3) Retain for Settled. Settled cannot emit without these — a Settled arriving
+        //    after a skipped Gate (defensive scenario) is logged and drops the settle.
+        _state.LastPImbTicksPerQuarter = pimbByQh;
+
+        // 4) Emit 4 public ImbalancePrint messages — one per QH in instrument order.
+        for (var qh = 0; qh < 4; qh++)
+        {
+            var instrumentDto = BuildQuarterInstrumentDto(qh);
+            var instrumentRoutingKey = BuildQuarterInstrumentRoutingKey(qh);
+            var aTotalTicks = checked(aTeamsByQh[qh] + _state.APhysicalQh[qh]);
+
+            var print = new ImbalancePrintEvent(
+                RoundNumber: _state.CurrentRoundNumber,
+                InstrumentId: instrumentDto,
+                QuarterIndex: qh,
+                PImbTicks: pimbByQh[qh],
+                ATotalTicks: aTotalTicks,
+                APhysicalTicks: _state.APhysicalQh[qh],
+                Regime: _state.CurrentRegime,
+                TimestampNs: tsNs);
+
+            _publisher.PublishPublicEvent(
+                RabbitMqTopology.PublicImbalancePrintRoutingKey(instrumentRoutingKey),
+                MessageTypes.ImbalancePrint,
+                print);
+        }
+    }
+
+    /// <summary>
+    /// Realize per-team settlements at Settled. For each distinct non-deny-list client
+    /// with any net-position entry: emit one <see cref="ImbalanceSettlementEvent"/> per
+    /// QH 0..3 (four rows per team, even if the position for that QH is zero — the
+    /// scoring model expects a full per-team matrix). <c>imbalance_pnl_ticks</c> is
+    /// computed as <c>checked(position_ticks * p_imb_ticks)</c> — no decimal math, no
+    /// rounding (T-04-23). Clients are iterated in ordinal order so emission order is
+    /// deterministic across replays.
+    /// </summary>
+    private void HandleSettled(long tsNs)
+    {
+        if (_state.LastPImbTicksPerQuarter is null)
+        {
+            _log.LogError(
+                "Settled reached without prior Gate computation in round {Round} — dropping settlement emission",
+                _state.CurrentRoundNumber);
+            return;
+        }
+
+        var deny = _options.Value.NonSettlementClientIds ?? Array.Empty<string>();
+
+        // Enumerate distinct client ids with any net-position entry (including zeros
+        // for per-QH slots without a recorded fill). Deterministic ordinal sort so
+        // byte-identical replays produce the same emission order.
+        var realTeams = _state.NetPositions
+            .Select(kv => kv.Key.ClientId)
+            .Where(id => Array.IndexOf(deny, id) < 0)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .ToList();
+
+        var pimbByQh = _state.LastPImbTicksPerQuarter;
+
+        foreach (var clientId in realTeams)
+        {
+            for (var qh = 0; qh < 4; qh++)
+            {
+                _state.NetPositions.TryGetValue((clientId, qh), out var positionTicks);
+                var pimbTicks = pimbByQh[qh];
+                var pnlTicks = checked(positionTicks * pimbTicks);
+
+                var settlement = new ImbalanceSettlementEvent(
+                    RoundNumber: _state.CurrentRoundNumber,
+                    ClientId: clientId,
+                    InstrumentId: BuildQuarterInstrumentDto(qh),
+                    QuarterIndex: qh,
+                    PositionTicks: positionTicks,
+                    PImbTicks: pimbTicks,
+                    ImbalancePnlTicks: pnlTicks,
+                    TimestampNs: tsNs);
+
+                // ResolvePrivateRouting switches on the event type and produces
+                // private.imbalance.settlement.<clientId> for ImbalanceSettlementEvent.
+                _publisher.PublishPrivate(clientId, settlement);
+            }
+        }
+
+        _log.LogInformation(
+            "Settled: emitted {Count} settlement rows across {Teams} teams",
+            realTeams.Count * 4, realTeams.Count);
+    }
+
+    /// <summary>
+    /// Build the canonical Phase 04 <see cref="InstrumentIdDto"/> for quarter index
+    /// 0..3 using the synthetic 9999-01-01 hour anchor shared with
+    /// <c>TradingCalendar.GenerateInstruments()</c>.
+    /// </summary>
+    private static InstrumentIdDto BuildQuarterInstrumentDto(int qh)
+    {
+        if (qh is < 0 or > 3)
+        {
+            throw new ArgumentOutOfRangeException(nameof(qh), "quarter_index must be 0..3");
+        }
+
+        var start = SyntheticHourStart.AddMinutes(qh * 15);
+        var end = start.AddMinutes(15);
+        return new InstrumentIdDto(DeliveryAreaDe, start, end);
+    }
+
+    /// <summary>
+    /// Build the routing-key form of the Phase 04 canonical quarter instrument —
+    /// matches <c>InstrumentId.ToRoutingKey()</c> (<c>&lt;area&gt;.&lt;yyyyMMddHHmm&gt;-&lt;yyyyMMddHHmm&gt;</c>).
+    /// </summary>
+    private static string BuildQuarterInstrumentRoutingKey(int qh)
+    {
+        if (qh is < 0 or > 3)
+        {
+            throw new ArgumentOutOfRangeException(nameof(qh), "quarter_index must be 0..3");
+        }
+
+        var start = SyntheticHourStart.AddMinutes(qh * 15);
+        var end = start.AddMinutes(15);
+        return $"{DeliveryAreaDe}.{start:yyyyMMddHHmm}-{end:yyyyMMddHHmm}";
     }
 
     private void ExpireTransientShocks(long nowTsNs)

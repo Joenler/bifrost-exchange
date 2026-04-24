@@ -208,17 +208,24 @@ public class ForecastCadenceTests
 
             // One cadence interval of RoundOpen → one forecast.
             await host.AdvanceSecondsAsync(options.TForecastSeconds);
-            var duringRound = host.Publisher.CapturedPublic.Count;
+            var duringRound = host.Publisher.CapturedPublic
+                .Count(c => c.Evt is ForecastUpdateEvent);
             Assert.Equal(1, duringRound);
 
-            // Transition to Gate.
+            // Transition to Gate. Gate itself emits 4 ImbalancePrintEvent public
+            // messages (Plan 12) — those are filtered out of the forecast count
+            // below since this test only locks the forecast cadence gate.
             var gateTs = host.Clock.GetUtcNow().ToUnixTimeMilliseconds() * 1_000_000L;
             await host.InjectAsync(new RoundStateMessage(
                 RoundState.RoundOpen, RoundState.Gate, gateTs));
 
-            // Advance several more cadence intervals — count must not grow.
+            // Advance several more cadence intervals — forecast count must not
+            // grow. ImbalancePrint count is asserted separately in
+            // ImbalancePrintEmissionTests.
             await host.AdvanceSecondsAsync(options.TForecastSeconds * 3);
-            Assert.Equal(duringRound, host.Publisher.CapturedPublic.Count);
+            var afterGate = host.Publisher.CapturedPublic
+                .Count(c => c.Evt is ForecastUpdateEvent);
+            Assert.Equal(duringRound, afterGate);
         }
         finally
         {

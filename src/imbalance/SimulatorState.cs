@@ -57,6 +57,15 @@ public sealed class SimulatorState
     public string CurrentRegime { get; set; } = "Calm";
 
     /// <summary>
+    /// Per-quarter realized P_imb_ticks computed at <c>RoundState=Gate</c>; consumed
+    /// at <c>RoundState=Settled</c> for per-team settlement emission. Null while no
+    /// round has reached Gate yet; reset to null on a new-round transition so a late
+    /// Settled without a preceding Gate cannot pick up stale prices from a prior round.
+    /// Length is always 4 when non-null (Q0..Q3).
+    /// </summary>
+    public long[]? LastPImbTicksPerQuarter { get; set; }
+
+    /// <summary>
     /// Clear all round-scoped accumulators on a new-round transition. Deliberately does
     /// NOT reset <see cref="CurrentRoundNumber"/> or <see cref="CurrentRegime"/> — those
     /// are updated explicitly by the drain loop from the incoming RoundStateMessage.
@@ -66,6 +75,7 @@ public sealed class SimulatorState
         NetPositions.Clear();
         Array.Clear(APhysicalQh, 0, APhysicalQh.Length);
         PendingTransients.Clear();
+        LastPImbTicksPerQuarter = null;
     }
 }
 
