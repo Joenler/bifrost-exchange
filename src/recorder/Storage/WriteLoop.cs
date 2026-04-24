@@ -175,6 +175,7 @@ public sealed class WriteLoop : BackgroundService
         var fills = new List<FillWrite>();
         var rejects = new List<RejectWrite>();
         var events = new List<EventWrite>();
+        var imbalanceSettlements = new List<ImbalanceSettlementWrite>();
 
         foreach (var cmd in batch)
         {
@@ -197,6 +198,9 @@ public sealed class WriteLoop : BackgroundService
                     break;
                 case EventWrite ev:
                     events.Add(ev);
+                    break;
+                case ImbalanceSettlementWrite imb:
+                    imbalanceSettlements.Add(imb);
                     break;
             }
         }
@@ -235,6 +239,12 @@ public sealed class WriteLoop : BackgroundService
         {
             _db.InsertEvents(events);
             _logger.LogDebug("Flushed {Count} events", events.Count);
+        }
+
+        if (imbalanceSettlements.Count > 0)
+        {
+            _db.InsertImbalanceSettlements(imbalanceSettlements);
+            _logger.LogDebug("Flushed {Count} imbalance settlements", imbalanceSettlements.Count);
         }
 
         var elapsedMs = Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;

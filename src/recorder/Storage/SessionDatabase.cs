@@ -323,6 +323,50 @@ public sealed class SessionDatabase : IDisposable
         transaction.Commit();
     }
 
+    public void InsertImbalanceSettlements(IReadOnlyList<ImbalanceSettlementWrite> batch)
+    {
+        if (batch.Count == 0) return;
+
+        using var transaction = _connection.BeginTransaction();
+
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO imbalance_settlements (
+                ts_ns, round_number, client_id, instrument_id, quarter_index,
+                position_ticks, p_imb_ticks, imbalance_pnl_ticks
+            ) VALUES (
+                $ts_ns, $round_number, $client_id, $instrument_id, $quarter_index,
+                $position_ticks, $p_imb_ticks, $imbalance_pnl_ticks
+            )
+            """;
+
+        var pTs = cmd.Parameters.Add("$ts_ns", SqliteType.Integer);
+        var pRound = cmd.Parameters.Add("$round_number", SqliteType.Integer);
+        var pClient = cmd.Parameters.Add("$client_id", SqliteType.Text);
+        var pInstrument = cmd.Parameters.Add("$instrument_id", SqliteType.Text);
+        var pQh = cmd.Parameters.Add("$quarter_index", SqliteType.Integer);
+        var pPos = cmd.Parameters.Add("$position_ticks", SqliteType.Integer);
+        var pPimb = cmd.Parameters.Add("$p_imb_ticks", SqliteType.Integer);
+        var pPnl = cmd.Parameters.Add("$imbalance_pnl_ticks", SqliteType.Integer);
+
+        cmd.Prepare();
+
+        foreach (var w in batch)
+        {
+            pTs.Value = w.TsNs;
+            pRound.Value = w.RoundNumber;
+            pClient.Value = w.ClientId;
+            pInstrument.Value = w.InstrumentId;
+            pQh.Value = w.QuarterIndex;
+            pPos.Value = w.PositionTicks;
+            pPimb.Value = w.PImbTicks;
+            pPnl.Value = w.ImbalancePnlTicks;
+            cmd.ExecuteNonQuery();
+        }
+
+        transaction.Commit();
+    }
+
     /// <summary>
     /// Per-table row counts used by the shutdown hook to stamp the manifest.
     /// </summary>
