@@ -30,3 +30,28 @@ authored this note to make the split visible to downstream phases.
 
 Every donated folder under `src/exchange/` and `src/recorder/` carries an `UPSTREAM.md`
 file recording the authoritative Arena commit SHA `5f8da6072978a4693de7c7ec7f5ff9ea22181a0b`.
+
+## PhysicalShockCmd quarter_index — required-flag enforcement
+
+Added in v1.1.0 (imbalance-simulator wire): `optional int32 quarter_index = 4;` on both
+`mc.proto::PhysicalShockCmd` and `events.proto::PhysicalShock`. Because proto3 optional
+fields default to 0 when unset, a consumer that reads `shock.QuarterIndex` without
+checking `HasQuarterIndex` would silently bias all shocks to Q1 — a silent settlement
+corruption.
+
+The imbalance simulator handles this at its boundary with a
+`Debug.Assert(msg.HasQuarterIndex)` in `ShockConsumerHostedService` plus a release-mode
+guarded log + discard — but that is defense-in-depth.
+
+The authoritative boundary enforcement belongs earlier in the pipeline:
+
+- The future MC console CLI (Phase 06b) MUST make `--quarter` a required argparse
+  argument on the `physical-shock` subcommand. Invocation without `--quarter` must exit
+  non-zero BEFORE any gRPC send.
+- The future round orchestrator (Phase 06) MUST validate `HasQuarterIndex` on the
+  received `PhysicalShockCmd` in its MC gRPC handler. Missing field returns a typed
+  `McCommandResult { success: false, message: "quarter_index required" }` and does NOT
+  forward to the simulator.
+
+The imbalance simulator trusts that Phase 06 and Phase 06b honor this invariant.
+Simulator assertions exist as regression catchers, not as the primary contract.
