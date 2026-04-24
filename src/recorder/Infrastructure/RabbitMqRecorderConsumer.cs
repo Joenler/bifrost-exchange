@@ -141,6 +141,20 @@ public sealed class RabbitMqRecorderConsumer : BackgroundService
             RecorderTopology.ImbalanceSettlementRoutingKey,
             cancellationToken: stoppingToken);
 
+        // Third exchange binding: public audit events from the bifrost.public
+        // exchange. The public exchange is declared by the central exchange
+        // service on its own boot; we only bind our queue to it here. The
+        // events.# pattern catches every events.* audit-event key — the
+        // auction service's events.auction.bid / events.auction.cleared /
+        // events.auction.no_cross rows, the quoter's events.regime.change
+        // rows, and any future public audit publishers — all multiplexed
+        // into the existing events table without schema change.
+        await _consumeChannel.QueueBindAsync(
+            RecorderTopology.RecorderEventsQueue,
+            RecorderTopology.PublicEventsExchange,
+            RecorderTopology.PublicEventsRoutingKey,
+            cancellationToken: stoppingToken);
+
         var eventsConsumer = new AsyncEventingBasicConsumer(_consumeChannel);
         eventsConsumer.ReceivedAsync += async (_, ea) =>
         {
