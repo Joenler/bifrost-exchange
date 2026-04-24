@@ -113,8 +113,13 @@ public sealed class RabbitMqRecorderConsumer : BackgroundService
             RecorderTopology.TraderEventsExchange, ExchangeType.Topic, durable: true,
             cancellationToken: stoppingToken);
 
+        // RabbitMQ 4 rejects transient non-exclusive queues
+        // (`transient_nonexcl_queues` deprecation flag is a hard block by default).
+        // The recorder is a single-process consumer per compose stack, so exclusive
+        // (queue tied to this connection, auto-deleted on drop) is semantically
+        // correct and unblocks the deprecation.
         await _consumeChannel.QueueDeclareAsync(
-            RecorderTopology.RecorderEventsQueue, durable: false, exclusive: false, autoDelete: true,
+            RecorderTopology.RecorderEventsQueue, durable: false, exclusive: true, autoDelete: true,
             cancellationToken: stoppingToken);
         await _consumeChannel.QueueBindAsync(
             RecorderTopology.RecorderEventsQueue, RecorderTopology.TraderEventsExchange,

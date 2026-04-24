@@ -81,10 +81,14 @@ public sealed class QuoterPublicEventConsumer(
             autoDelete: false,
             cancellationToken: stoppingToken);
 
+        // RabbitMQ 4 rejects transient non-exclusive queues — see the matching
+        // comment in McRegimeForceConsumer. Per-instance ephemeral receiver:
+        // exclusive makes the queue die with the connection, which is exactly
+        // what we want for order-lifecycle fanout into a single-process quoter.
         await _channel.QueueDeclareAsync(
             QueueName,
             durable: false,
-            exclusive: false,
+            exclusive: true,
             autoDelete: true,
             cancellationToken: stoppingToken);
 

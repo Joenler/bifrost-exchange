@@ -45,10 +45,17 @@ public sealed class McRegimeForceConsumer(
             autoDelete: false,
             cancellationToken: stoppingToken);
 
+        // RabbitMQ 4 rejects transient non-exclusive queues (the deprecation flag
+        // `transient_nonexcl_queues` is now a hard block by default). This queue is
+        // a per-instance ephemeral fanout receiver: each running quoter declares
+        // its own, unprocessed commands should be discarded if the quoter crashes,
+        // and there is never more than one consumer. `exclusive: true` satisfies
+        // all three: queue is tied to the declaring connection and auto-deleted
+        // when that connection drops. `autoDelete: true` is redundant but harmless.
         await _channel.QueueDeclareAsync(
             QuoterRabbitTopology.McRegimeQueue,
             durable: false,
-            exclusive: false,
+            exclusive: true,
             autoDelete: true,
             cancellationToken: stoppingToken);
 

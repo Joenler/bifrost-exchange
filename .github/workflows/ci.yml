@@ -116,14 +116,34 @@ jobs:
         if: matrix.kind == 'aggregate'
         run: docker compose build
 
+      - name: Aggregate integration — pull third-party images (untimed)
+        # `docker compose build` only builds locally-defined images; third-party
+        # images like `rabbitmq:4-management` (~46 MB) are pulled on first up.
+        # Pulling them here (outside the 30s gate) keeps the runtime-readiness
+        # budget honest — the previous pass ran the pull INSIDE `timeout 30`,
+        # which on a cold GitHub runner consumed ~10s of the 30s window before
+        # any container could start, causing the gate to SIGTERM compose while
+        # quoter was still in its healthcheck start_period. The resulting
+        # `container bifrost-exchange-quoter-1 exited (0)` was the SIGTERM
+        # response, not an actual crash.
+        if: matrix.kind == 'aggregate'
+        run: docker compose pull --quiet
+
       - name: Aggregate integration — 30s compose up --wait gate
         if: matrix.kind == 'aggregate'
         run: |
-          timeout 30 docker compose up --wait -d
+          if ! timeout 30 docker compose up --wait -d; then
+            echo "::error::compose up --wait did not complete within 30s runtime-readiness budget"
+            docker compose ps
+            docker compose logs --tail=80
+            docker compose down --timeout 10 || true
+            exit 1
+          fi
           docker compose ps --format json > /tmp/ps.json
           if grep -E '"Health":"(unhealthy|starting)"' /tmp/ps.json; then
             echo "::error::One or more services not healthy after 30s"
-            docker compose logs
+            docker compose logs --tail=80
+            docker compose down --timeout 10 || true
             exit 1
           fi
           docker compose down --timeout 10
