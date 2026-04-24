@@ -125,9 +125,24 @@ public sealed class TestQuoterHost : IAsyncDisposable
             // wall-clock -- well within the 30s budget for this suite.
             await Task.Delay(1);
         }
-        // Final settle so the last tick's body completes before the caller
-        // observes Captured.
-        await Task.Delay(1);
+        // Final drain: poll until the capture stream stops growing for several
+        // consecutive checks. A single 1ms delay is reliable on a quiet dev box
+        // but not on a loaded CI runner, where a lagged tick-body continuation
+        // can fire AFTER the caller has already mutated tracker state (race
+        // observed in CancelAllOnTransitionTests: one tick's TrackOrder reset
+        // a slot's OrderId to null right after SeedTracker had set it, so the
+        // cancel-all loop then skipped that slot and produced 29 cancels
+        // instead of 30). Polling with early-exit keeps happy-path cost low
+        // while staying robust under CI load.
+        var lastCount = TestPublisher.Captured.Count;
+        var stable = 0;
+        for (var i = 0; i < 25 && stable < 3; i++)  // cap ~50ms
+        {
+            await Task.Delay(2);
+            var now = TestPublisher.Captured.Count;
+            if (now == lastCount) stable++;
+            else { stable = 0; lastCount = now; }
+        }
     }
 
     public async ValueTask DisposeAsync()
