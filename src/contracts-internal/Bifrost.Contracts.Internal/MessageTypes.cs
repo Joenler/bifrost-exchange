@@ -40,4 +40,9 @@ public static class MessageTypes
     public const string PhysicalShock = "PhysicalShock";
     public const string ImbalanceSettlement = "ImbalanceSettlement";
     public const string ImbalancePrint = "ImbalancePrint";
+
+    // Auction surface payloads.
+    public const string AuctionBidSubmitted = "AuctionBidSubmitted";
+    public const string AuctionClearingResult = "AuctionClearingResult";
+    public const string AuctionNoCross = "AuctionNoCross";
 }
