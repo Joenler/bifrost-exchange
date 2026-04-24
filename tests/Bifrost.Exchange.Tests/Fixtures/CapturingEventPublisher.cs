@@ -22,6 +22,7 @@ public sealed class CapturingEventPublisher : IEventPublisher
     public ConcurrentQueue<object> CapturedInstrumentEvents { get; } = new();
     public ConcurrentQueue<(string RoutingKey, object Stats)> CapturedOrderStats { get; } = new();
     public ConcurrentQueue<(string RoutingKey, object Snapshot, long Sequence)> CapturedSnapshots { get; } = new();
+    public ConcurrentQueue<(string RoutingKey, string MessageType, object Evt)> CapturedPublicEvents { get; } = new();
 
     public ValueTask PublishPrivate(string clientId, object @event, string? correlationId = null)
     {
@@ -62,6 +63,12 @@ public sealed class CapturingEventPublisher : IEventPublisher
     public ValueTask PublishPublicSnapshot(string instrumentId, object snapshot, long sequence)
     {
         CapturedSnapshots.Enqueue((instrumentId, snapshot, sequence));
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask PublishPublicEvent(string routingKey, string messageType, object @event)
+    {
+        CapturedPublicEvents.Enqueue((routingKey, messageType, @event));
         return ValueTask.CompletedTask;
     }
 }

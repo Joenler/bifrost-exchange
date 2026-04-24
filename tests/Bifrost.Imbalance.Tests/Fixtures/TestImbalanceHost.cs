@@ -65,6 +65,8 @@ public sealed class TestImbalanceHost : IAsyncDisposable
             Rng,
             Microsoft.Extensions.Options.Options.Create(Options),
             Clock,
+            Publisher,
+            Pricing,
             NullLogger<SimulatorActorLoop>.Instance);
 
         _loopTask = ActorLoop.StartAsync(_cts.Token);

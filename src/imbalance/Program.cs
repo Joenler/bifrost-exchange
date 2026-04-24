@@ -132,8 +132,14 @@ builder.Services.AddHostedService<FillConsumerHostedService>();
 // the binding is a no-op in production.
 builder.Services.AddHostedService<ShockConsumerHostedService>();
 
-// Remaining producer hosted services (forecast timer, round-state bridge)
-// wire onto the shared channel in later passes.
+// Forecast timer: PeriodicTimer wired through the injected TimeProvider
+// fires every TForecastSeconds and enqueues a ForecastTickMessage. The drain
+// loop's HandleForecastTick arm gates emission on CurrentRoundState ==
+// RoundOpen and publishes a single scalar ForecastUpdateEvent averaged across
+// the four QHs via PublishPublicEvent on public.forecast.
+builder.Services.AddHostedService<ForecastTimerHostedService>();
+
+// Round-state bridge wires onto the shared channel in a later pass.
 builder.Services.AddHostedService<SimulatorActorLoop>();
 
 var host = builder.Build();
