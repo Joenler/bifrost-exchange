@@ -18,6 +18,19 @@ using RoundStateEnum = Bifrost.Exchange.Application.RoundState.RoundState;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ---------- Kestrel body-size cap ----------
+// Mirror the appsettings.json Kestrel:Limits:MaxRequestBodySize value
+// directly via ConfigureKestrel so the cap is enforced unambiguously
+// regardless of how the implicit Kestrel-config binding behaves. The cap
+// is one of the threat-model mitigations for inbound HTTP burst DoS — it
+// must always be in effect on the production listener.
+var maxRequestBodyBytes = builder.Configuration.GetValue<long>(
+    "Kestrel:Limits:MaxRequestBodySize", 65536L);
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = maxRequestBodyBytes;
+});
+
 // ---------- JSON source-generation for the three auction DTOs ----------
 // Inserted at index 0 of the chain so the source-generated metadata wins
 // over any reflection-based fallback. Plan 04 authored
