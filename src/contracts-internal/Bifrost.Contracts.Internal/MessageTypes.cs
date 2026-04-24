@@ -34,4 +34,10 @@ public static class MessageTypes
 
     // Public events bus payloads (events.proto::Event oneof variants).
     public const string RegimeChange = "RegimeChange";
+
+    public const string ForecastUpdate = "ForecastUpdate";
+    public const string ForecastRevision = "ForecastRevision";
+    public const string PhysicalShock = "PhysicalShock";
+    public const string ImbalanceSettlement = "ImbalanceSettlement";
+    public const string ImbalancePrint = "ImbalancePrint";
 }
