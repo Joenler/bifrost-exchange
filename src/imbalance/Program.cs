@@ -5,6 +5,7 @@ using Bifrost.Exchange.Application;
 using Bifrost.Exchange.Application.RoundState;
 using Bifrost.Exchange.Infrastructure.RabbitMq;
 using Bifrost.Imbalance;
+using Bifrost.Imbalance.HostedServices;
 using Bifrost.Time;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -117,9 +118,14 @@ builder.Services.AddSingleton<IEventPublisher>(sp => sp.GetRequiredService<Buffe
 // service healthy via the sentinel HEALTHCHECK.
 builder.Services.AddHostedService<StartupLogger>();
 
-// Producer hosted services (fill consumer, shock consumer, forecast timer,
-// round-state bridge) wire onto the shared channel in later passes; the
-// scaffolding here ships the drain loop only.
+// Fill consumer: subscribes to private.exec.*.fill on the private topic
+// exchange, resolves quarter_index via QuarterIndexResolver (drops the hour
+// instrument at the boundary), and enqueues FillMessage onto the shared
+// channel for the actor loop to accumulate (clientId, QH) -> net_position.
+builder.Services.AddHostedService<FillConsumerHostedService>();
+
+// Remaining producer hosted services (shock consumer, forecast timer,
+// round-state bridge) wire onto the shared channel in later passes.
 builder.Services.AddHostedService<SimulatorActorLoop>();
 
 var host = builder.Build();
