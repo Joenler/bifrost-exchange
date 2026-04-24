@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RoundStateEnum = Bifrost.Exchange.Application.RoundState.RoundState;
 
@@ -66,9 +67,18 @@ public sealed class TestAuctionHost : IAsyncDisposable
         RoundStateEnum initial = RoundStateEnum.IterationOpen)
     {
         var builder = WebApplication.CreateBuilder();
-        // Bind to a dynamic loopback port so multiple tests can run in
-        // parallel without colliding on a fixed port.
-        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        // The dah-auction src project ships an appsettings.json pinning Kestrel
+        // to http://+:8080, which gets copied to the test bin output through
+        // the ProjectReference. Override that binding here with a dynamic
+        // loopback port so multiple tests can run in parallel without colliding
+        // and without binding to all interfaces. Both config keys are cleared
+        // explicitly to make the override unambiguous regardless of which
+        // resolution path Kestrel picks (Kestrel:Endpoints vs urls).
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Kestrel:Endpoints:Http:Url"] = "http://127.0.0.1:0",
+            ["urls"] = "http://127.0.0.1:0",
+        });
 
         // Source-generated JSON resolver — same registration the production
         // host uses so deserialization behaviour matches end-to-end.
