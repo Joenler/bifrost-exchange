@@ -80,6 +80,16 @@ public sealed class TestAuctionHost : IAsyncDisposable
             ["urls"] = "http://127.0.0.1:0",
         });
 
+        // Apply the production body cap directly via Kestrel options so it is
+        // enforced regardless of which Kestrel config section the host
+        // happens to bind from. Production sets this from appsettings.json
+        // (Kestrel:Limits:MaxRequestBodySize = 65536); the explicit Configure
+        // call ensures the test sees identical Kestrel constraints.
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            options.Limits.MaxRequestBodySize = 65536;
+        });
+
         // Source-generated JSON resolver — same registration the production
         // host uses so deserialization behaviour matches end-to-end.
         builder.Services.ConfigureHttpJsonOptions(o =>
