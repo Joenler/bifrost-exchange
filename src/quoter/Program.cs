@@ -142,6 +142,12 @@ builder.Services.AddSingleton<IOrderContext>(sp =>
 // Inbound MC regime-force consumer (poll-mode BackgroundService).
 builder.Services.AddHostedService<McRegimeForceConsumer>();
 
+// Inbound private order-lifecycle consumer — dispatches matching-engine echo
+// events into the PyramidQuoteTracker's lifecycle callbacks so _pending and
+// _accepted reconcile in production the same way they do in the integration
+// TestRabbitPublisher fixture.
+builder.Services.AddHostedService<QuoterPublicEventConsumer>();
+
 // Sentinel HEALTHCHECK retained from the bootstrap skeleton; writes /tmp/bifrost-ready
 // as soon as the host starts so docker compose can mark this service healthy.
 builder.Services.AddHostedService<StartupLogger>();

@@ -2,6 +2,12 @@
 // Cross-instrument operations (cancel-all-on-transition) acquire ALL per-instrument locks in
 // index order. Violating this order risks deadlock vs the re-quote path.
 //
+// CONSUMER CONTRACT: QuoterPublicEventConsumer dispatches tracker lifecycle callbacks
+// (OnOrderAccepted / OnFill / OnOrderCancelled / OnOrderRejected) on its own thread
+// WITHOUT acquiring _globalRegimeLock. Tracker internal CAS + ConcurrentDictionary
+// primitives own consistency; the lock-order contract above governs Quoter tick-loop
+// operations only. See QuoterPublicEventConsumer XMLdoc for details.
+//
 // REGIME TRANSITION PROTOCOL (authoritative — do not reorder):
 //   1. Compute newRegime, newParams = schedule.CurrentParams()
 //   2. EMIT Event.RegimeChange { from, to, mc_forced }    ← FIRST, before cancels

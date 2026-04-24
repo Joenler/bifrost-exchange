@@ -16,4 +16,8 @@
         <ProjectReference Include="..\..\contracts\dotnet\Bifrost.Contracts.Events\Bifrost.Contracts.Events.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <InternalsVisibleTo Include="Bifrost.Quoter.Tests" />
+    </ItemGroup>
+
 </Project>
