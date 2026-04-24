@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Threading.Channels;
+using Bifrost.Contracts.Internal;
 using Bifrost.Exchange.Application;
 using Bifrost.Exchange.Application.RoundState;
 using Bifrost.Exchange.Domain;
@@ -6,14 +8,40 @@ using Bifrost.Quoter;
 using Bifrost.Quoter.Abstractions;
 using Bifrost.Quoter.Mocks;
 using Bifrost.Quoter.Pricing;
+using Bifrost.Quoter.Rabbit;
 using Bifrost.Quoter.Schedule;
 using Bifrost.Quoter.Stubs;
 using Bifrost.Time;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using RabbitMQ.Client;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// ---------- RabbitMQ connection (Polly-retried via shared resilience pipeline) ----------
+// Single connection shared by all quoter Rabbit components (publisher channel +
+// MC regime-force consumer). Matches Phase 02 exchange Program.cs pattern; the
+// resilience pipeline tolerates the cold-boot race where the quoter container
+// starts polling before rabbit's AMQP listener is ready.
+var rabbitConfig = builder.Configuration.GetSection("RabbitMq");
+var factory = new ConnectionFactory
+{
+    HostName = rabbitConfig["Host"] ?? "rabbitmq",
+    Port = int.Parse(rabbitConfig["Port"] ?? "5672", CultureInfo.InvariantCulture),
+    UserName = rabbitConfig["Username"] ?? "guest",
+    Password = rabbitConfig["Password"] ?? "guest",
+};
+
+using var startupLoggerFactory = LoggerFactory.Create(b => b.AddConsole());
+var startupLogger = startupLoggerFactory.CreateLogger("Bifrost.Quoter.Startup");
+var pipeline = RabbitMqResilience.CreateConnectionPipeline(startupLogger);
+
+var connection = await pipeline.ExecuteAsync(
+    async ct => await factory.CreateConnectionAsync("bifrost-quoter", ct),
+    CancellationToken.None);
+builder.Services.AddSingleton(connection);
 
 // Clock seam (every clock access goes through IClock; tests inject FakeTimeProvider).
 builder.Services.AddSingleton<IClock, SystemClock>();
@@ -55,13 +83,34 @@ builder.Services.AddSingleton<RegimeSchedule>(sp =>
         sp.GetRequiredService<Scenario>(),
         sp.GetRequiredService<IClock>().GetUtcNow()));
 
-// MC-force inbox -- bounded channel; the future McRegimeForceConsumer is the
-// only writer, the quoter loop is the only reader.
+// MC-force inbox -- bounded channel; the McRegimeForceConsumer is the only
+// writer, the quoter loop is the only reader.
 builder.Services.AddSingleton<Channel<RegimeForceMessage>>(_ =>
     Channel.CreateBounded<RegimeForceMessage>(64));
 
-// Regime-change publisher -- NoOp logs only; the RabbitMQ-backed publisher
-// swaps this binding when the broker glue lands.
+// Buffered event publisher -- Phase 02 donation, channel-backed wrapper around
+// RabbitMqEventPublisher. Owns its own publisher channel so it does not
+// contend with the consumer channel for AMQP frames.
+builder.Services.AddSingleton(sp =>
+{
+    var conn = sp.GetRequiredService<IConnection>();
+    return conn.CreateChannelAsync().GetAwaiter().GetResult();
+});
+
+builder.Services.AddSingleton(sp =>
+{
+    var publishChannel = sp.GetRequiredService<IChannel>();
+    var clock = sp.GetRequiredService<IClock>();
+    return new Bifrost.Exchange.Infrastructure.RabbitMq.RabbitMqEventPublisher(publishChannel, clock);
+});
+
+builder.Services.AddSingleton(sp =>
+    new Bifrost.Exchange.Infrastructure.RabbitMq.BufferedEventPublisher(
+        sp.GetRequiredService<Bifrost.Exchange.Infrastructure.RabbitMq.RabbitMqEventPublisher>(),
+        sp.GetService<ILogger<Bifrost.Exchange.Infrastructure.RabbitMq.BufferedEventPublisher>>()));
+
+// Regime-change publisher -- NoOp logs only; Plan 6 swaps this binding to the
+// RabbitMQ-backed RegimeChangePublisher once the Rabbit/ namespace lands.
 builder.Services.AddSingleton<IRegimeChangePublisher, NoOpRegimeChangePublisher>();
 
 // Pricing primitives. The GBM model is constructed against the scenario seed
@@ -82,6 +131,9 @@ builder.Services.AddSingleton(_ => new PyramidQuoteTracker(maxLevels: 3, TimePro
 // swap-in can unconditionally delete the file. Build-green shim while the
 // RabbitMQ command publisher is offline.
 builder.Services.AddSingleton<IOrderContext, NoOpOrderContext>();
+
+// Inbound MC regime-force consumer (poll-mode BackgroundService).
+builder.Services.AddHostedService<McRegimeForceConsumer>();
 
 // Sentinel HEALTHCHECK retained from the bootstrap skeleton; writes /tmp/bifrost-ready
 // as soon as the host starts so docker compose can mark this service healthy.
