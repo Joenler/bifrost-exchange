@@ -139,7 +139,14 @@ builder.Services.AddHostedService<ShockConsumerHostedService>();
 // the four QHs via PublishPublicEvent on public.forecast.
 builder.Services.AddHostedService<ForecastTimerHostedService>();
 
-// Round-state bridge wires onto the shared channel in a later pass.
+// Round-state bridge: subscribes to IRoundStateSource.OnChange and forwards
+// each transition onto the shared channel as a RoundStateMessage. Registered
+// BEFORE SimulatorActorLoop so the actor-loop drain is up when the first
+// transition arrives. Phase 06 will swap the production source from
+// ConfigRoundStateSource to a RabbitMQ-backed implementation; this bridge is
+// agnostic to the source's underlying transport.
+builder.Services.AddHostedService<RoundStateBridgeHostedService>();
+
 builder.Services.AddHostedService<SimulatorActorLoop>();
 
 var host = builder.Build();
