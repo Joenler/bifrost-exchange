@@ -27,6 +27,15 @@ public static class RabbitMqTopology
     public static string PrivateExecRoutingKey(string clientId, string eventType) =>
         $"private.exec.{clientId}.{eventType}";
 
+    public const string PublicForecastRoutingKey = "public.forecast";
+    public const string PublicForecastRevisionRoutingKey = "public.forecast.revision";
+
+    public static string PublicImbalancePrintRoutingKey(string instrumentId) =>
+        $"public.imbalance.print.{instrumentId}";
+
+    public static string PrivateImbalanceSettlementRoutingKey(string clientId) =>
+        $"private.imbalance.settlement.{clientId}";
+
     public static async Task DeclareExchangeTopologyAsync(IChannel channel, CancellationToken ct = default)
     {
         await channel.ExchangeDeclareAsync(CommandExchange, ExchangeType.Topic, durable: true, cancellationToken: ct);

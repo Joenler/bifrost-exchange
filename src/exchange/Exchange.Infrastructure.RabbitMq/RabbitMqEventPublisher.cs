@@ -158,6 +158,7 @@ public sealed class RabbitMqEventPublisher(IChannel channel, IClock clock) : IEv
             ExchangeMetadataEvent => ($"private.order.{clientId}.metadata", MessageTypes.ExchangeMetadata),
             InstrumentListEvent => ($"private.order.{clientId}.instruments", MessageTypes.InstrumentList),
             BookSnapshotResponse => ($"private.inquiry.{clientId}.book", MessageTypes.BookSnapshot),
+            ImbalanceSettlementEvent => (RabbitMqTopology.PrivateImbalanceSettlementRoutingKey(clientId), MessageTypes.ImbalanceSettlement),
             _ => throw new InvalidOperationException($"No message type mapping for {@event.GetType().Name}. Add a case to ResolvePrivateRouting and a constant to MessageTypes.")
         };
     }
