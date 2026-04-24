@@ -2,6 +2,7 @@ using Google.Protobuf;
 using Bifrost.Contracts.Internal;
 using Bifrost.Contracts.Internal.Commands;
 using Bifrost.Contracts.Internal.Shared;
+using EventsProto = Bifrost.Contracts.Events;
 using MarketProto = Bifrost.Contracts.Market;
 using StrategyProto = Bifrost.Contracts.Strategy;
 // NOTE: deliberately NOT importing Bifrost.Contracts.Internal.Events at file scope.
@@ -416,5 +417,153 @@ internal static class TranslationFixtures
         "UnknownInstrument" => StrategyProto.RejectReason.UnknownInstrument,
         "ReregisterRequired" => StrategyProto.RejectReason.ReregisterRequired,
         _ => throw new ArgumentException($"Unknown reject reason: {s}"),
+    };
+
+    // ========================================================================
+    // Row 9: ForecastUpdate ↔ ForecastUpdateEvent
+    // ========================================================================
+    //
+    // strategy.proto ForecastUpdate carries only (forecast_price_ticks,
+    // horizon_ns); TimestampNs lives on the enclosing MarketEvent envelope, so
+    // pass it through ToInternal the same way Fill↔OrderExecuted does.
+
+    public static Bifrost.Contracts.Internal.Events.ForecastUpdateEvent ToInternal(
+        StrategyProto.ForecastUpdate p,
+        long timestampNs) => new(
+        ForecastPriceTicks: p.ForecastPriceTicks,
+        HorizonNs: p.HorizonNs,
+        TimestampNs: timestampNs);
+
+    public static StrategyProto.ForecastUpdate ToProto(
+        Bifrost.Contracts.Internal.Events.ForecastUpdateEvent d) => new()
+    {
+        ForecastPriceTicks = d.ForecastPriceTicks,
+        HorizonNs = d.HorizonNs,
+    };
+
+    // ========================================================================
+    // Row 10: ForecastRevision ↔ ForecastRevisionEvent
+    // ========================================================================
+    //
+    // events.proto ForecastRevision carries only (new_forecast_price_ticks,
+    // reason); TimestampNs lives on the enclosing Event envelope — passed
+    // through ToInternal.
+
+    public static Bifrost.Contracts.Internal.Events.ForecastRevisionEvent ToInternal(
+        EventsProto.ForecastRevision p,
+        long timestampNs) => new(
+        NewForecastPriceTicks: p.NewForecastPriceTicks,
+        Reason: p.Reason,
+        TimestampNs: timestampNs);
+
+    public static EventsProto.ForecastRevision ToProto(
+        Bifrost.Contracts.Internal.Events.ForecastRevisionEvent d) => new()
+    {
+        NewForecastPriceTicks = d.NewForecastPriceTicks,
+        Reason = d.Reason,
+    };
+
+    // ========================================================================
+    // Row 11: PhysicalShock ↔ PhysicalShockEvent
+    // ========================================================================
+    //
+    // events.proto PhysicalShock carries (mw, label, persistence enum,
+    // optional int32 quarter_index — v1.1.0). TimestampNs lives on the
+    // enclosing Event envelope; passed through ToInternal.
+    //
+    // DTO always carries a non-nullable int QuarterIndex (orchestrator-side
+    // enforcement makes the optional required in production); ToInternal
+    // resolves HasQuarterIndex → value, falling back to 0 if unset. ToProto
+    // sets QuarterIndex explicitly so HasQuarterIndex is true on round-trip.
+
+    public static Bifrost.Contracts.Internal.Events.PhysicalShockEvent ToInternal(
+        EventsProto.PhysicalShock p,
+        long timestampNs) => new(
+        Mw: p.Mw,
+        Label: p.Label,
+        Persistence: ShockPersistenceEnumToString(p.Persistence),
+        QuarterIndex: p.HasQuarterIndex ? p.QuarterIndex : 0,
+        TimestampNs: timestampNs);
+
+    public static EventsProto.PhysicalShock ToProto(
+        Bifrost.Contracts.Internal.Events.PhysicalShockEvent d) => new()
+    {
+        Mw = d.Mw,
+        Label = d.Label,
+        Persistence = ShockPersistenceStringToEnum(d.Persistence),
+        QuarterIndex = d.QuarterIndex,
+    };
+
+    // ========================================================================
+    // Row 12: ImbalancePrint ↔ ImbalancePrintEvent
+    // ========================================================================
+    //
+    // market.proto ImbalancePrint carries all fields including timestamp_ns
+    // inline (unlike ForecastUpdate/ForecastRevision which get TimestampNs
+    // from their enclosing envelope). Regime enum ↔ string via the shared
+    // RegimeEnum helpers below; Instrument ↔ InstrumentIdDto via the shared
+    // helpers at the top of this file (so ToProto requires instrumentId +
+    // productType).
+
+    public static Bifrost.Contracts.Internal.Events.ImbalancePrintEvent ToInternal(
+        MarketProto.ImbalancePrint p) => new(
+        RoundNumber: p.RoundNumber,
+        InstrumentId: ToInternal(p.Instrument),
+        QuarterIndex: p.QuarterIndex,
+        PImbTicks: p.PImbTicks,
+        ATotalTicks: p.ATotalTicks,
+        APhysicalTicks: p.APhysicalTicks,
+        Regime: RegimeEnumToString(p.Regime),
+        TimestampNs: p.TimestampNs);
+
+    public static MarketProto.ImbalancePrint ToProto(
+        Bifrost.Contracts.Internal.Events.ImbalancePrintEvent d,
+        string instrumentId,
+        MarketProto.ProductType productType) => new()
+    {
+        RoundNumber = d.RoundNumber,
+        Instrument = ToProto(d.InstrumentId, instrumentId, productType),
+        QuarterIndex = d.QuarterIndex,
+        PImbTicks = d.PImbTicks,
+        ATotalTicks = d.ATotalTicks,
+        APhysicalTicks = d.APhysicalTicks,
+        Regime = RegimeStringToEnum(d.Regime),
+        TimestampNs = d.TimestampNs,
+    };
+
+    // ========================================================================
+    // Enum ↔ string helpers — v1.1.0 additions
+    // ========================================================================
+
+    public static string ShockPersistenceEnumToString(EventsProto.ShockPersistence p) => p switch
+    {
+        EventsProto.ShockPersistence.Round => "Round",
+        EventsProto.ShockPersistence.Transient => "Transient",
+        _ => throw new ArgumentException($"Unknown shock persistence: {p}"),
+    };
+
+    public static EventsProto.ShockPersistence ShockPersistenceStringToEnum(string s) => s switch
+    {
+        "Round" => EventsProto.ShockPersistence.Round,
+        "Transient" => EventsProto.ShockPersistence.Transient,
+        _ => throw new ArgumentException($"Unknown shock persistence: {s}"),
+    };
+
+    public static string RegimeEnumToString(EventsProto.Regime r) => r switch
+    {
+        EventsProto.Regime.Calm => "Calm",
+        EventsProto.Regime.Trending => "Trending",
+        EventsProto.Regime.Volatile => "Volatile",
+        EventsProto.Regime.Shock => "Shock",
+        _ => throw new ArgumentException($"Unknown regime: {r}"),
+    };
+
+    public static EventsProto.Regime RegimeStringToEnum(string s) => s switch
+    {
+        "Calm" => EventsProto.Regime.Calm,
+        "Trending" => EventsProto.Regime.Trending,
+        "Volatile" => EventsProto.Regime.Volatile,
+        "Shock" => EventsProto.Regime.Shock,
+        _ => throw new ArgumentException($"Unknown regime: {s}"),
     };
 }

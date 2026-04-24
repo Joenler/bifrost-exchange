@@ -48,7 +48,8 @@ string-encoded form for JavaScript-precision safety.
 | `bifrost.strategy.v1.MarketEvent.Fill` | `Bifrost.Contracts.Internal.Events.OrderExecutedEvent` | `decimal Fee` ↔ `int64 fee_ticks`; `decimal FilledQuantity` ↔ `int64 filled_quantity_ticks`; `price_ticks`, `remaining_quantity_ticks` analogous |
 | `bifrost.strategy.v1.MarketEvent.BookUpdate` | `Bifrost.Contracts.Internal.Events.BookDeltaEvent` | `BookLevel[] bids/asks` ↔ `BookLevelDto[] ChangedBids/ChangedAsks` |
 | `bifrost.strategy.v1.MarketEvent.Trade` | `Bifrost.Contracts.Internal.Events.PublicTradeEvent` | `enum Side aggressor_side` ↔ `string AggressorSide`; `long TickSize` carried through |
-| `bifrost.strategy.v1.MarketEvent.ForecastUpdate` | **BIFROST-specific — Phase 04** | DTO lands with the Imbalance Simulator; no Arena analog |
+| `bifrost.strategy.v1.MarketEvent.ForecastUpdate` | `Bifrost.Contracts.Internal.Events.ForecastUpdateEvent` | DTO carries `ForecastPriceTicks`, `HorizonNs`, `TimestampNs` (envelope-level on the proto side); no `ClientId` — public fairness invariant |
+| `bifrost.strategy.v1.MarketEvent.ImbalancePrint` | `Bifrost.Contracts.Internal.Events.ImbalancePrintEvent` | Added v1.1.0 per D-12. 4 messages per Gate (one per quarter); `RoundNumber`, `InstrumentIdDto`, `QuarterIndex`, `PImbTicks`, `ATotalTicks`, `APhysicalTicks`, `Regime` enum ↔ string, `TimestampNs` inline on the proto |
 | `bifrost.strategy.v1.MarketEvent.RoundState` | **BIFROST-specific — Phase 06** | DTO lands with the Round Orchestrator (wraps `bifrost.round.v1.RoundState`) |
 | `bifrost.strategy.v1.MarketEvent.Scorecard` | **BIFROST-specific — Phase 10** | DTO lands with the Scoring loop |
 | `bifrost.strategy.v1.MarketEvent.PositionSnapshot` | **BIFROST-specific — Phase 07** | DTO lands with the Gateway (position-authority rule GW-06) |
@@ -59,11 +60,11 @@ string-encoded form for JavaScript-precision safety.
 | gRPC type | Internal DTO | Notes |
 |---|---|---|
 | `bifrost.events.v1.Event.RegimeChange` | **BIFROST-specific — Phase 03** | DTO lands with the Quoter; `enum Regime` ↔ string |
-| `bifrost.events.v1.Event.ForecastRevision` | **BIFROST-specific — Phase 04** | DTO lands with the Imbalance Simulator |
+| `bifrost.events.v1.Event.ForecastRevision` | `Bifrost.Contracts.Internal.Events.ForecastRevisionEvent` | `NewForecastPriceTicks`, `Reason`, `TimestampNs` (envelope-level); public, no team identity |
 | `bifrost.events.v1.Event.News` | **BIFROST-specific — Phase 06b** | DTO lands with the MC Console |
 | `bifrost.events.v1.Event.MarketAlert` | **BIFROST-specific — Phase 06b** | `enum Severity` ↔ string; DTO lands with the MC Console |
 | `bifrost.events.v1.Event.ConfigChange` | **BIFROST-specific — Phase 06** | DTO lands with the Orchestrator |
-| `bifrost.events.v1.Event.PhysicalShock` | **BIFROST-specific — Phase 04** | DTO lands with the Imbalance Simulator; shape locked by ADR-0003 (`int32 mw` + `string label` + `ShockPersistence` enum) |
+| `bifrost.events.v1.Event.PhysicalShock` | `Bifrost.Contracts.Internal.Events.PhysicalShockEvent` | `int32 Mw`, `string Label`, `ShockPersistence` enum ↔ string, `int QuarterIndex` (optional `int32 quarter_index` landed in v1.1.0, required on the DTO — orchestrator enforces HasQuarterIndex at the boundary), `TimestampNs` envelope-level |
 
 ## Shared types (market.proto + round.proto + auction.proto)
 
@@ -98,6 +99,17 @@ type has a RabbitMQ DTO".
 | `bifrost.mc.v1.TeamKickCmd` / `TeamResetCmd` | — (internal gRPC only) | gateway-scope side-effect; no message-bus mirror |
 | `bifrost.mc.v1.ConfigSetCmd` | — (internal gRPC only) | emits `Event.ConfigChange` downstream via orchestrator |
 | `bifrost.mc.v1.LeaderboardRevealCmd` / `EventEndCmd` | — (internal gRPC only) | terminal MC signals |
+
+## Imbalance-simulator private events (internal-only; no gRPC counterpart)
+
+Per-team settlement rows are delivered over the internal RabbitMQ fabric on
+each team's private queue and are never projected onto the team-facing gRPC
+`MarketEvent` oneof. Teams consume the row directly from their private queue
+binding on `private.imbalance.settlement.<clientId>`.
+
+| gRPC type | Internal DTO | Notes |
+|---|---|---|
+| — (no gRPC analog — internal-only per D-14) | `Bifrost.Contracts.Internal.Events.ImbalanceSettlementEvent` | Private per-(team, quarter) row at RoundState=Settled. `RoundNumber`, `ClientId`, `InstrumentIdDto`, `QuarterIndex`, `PositionTicks`, `PImbTicks`, `ImbalancePnlTicks` (= `PositionTicks * PImbTicks`), `TimestampNs`. Teams cross-check against the public `ImbalancePrint` for the same quarter. |
 
 ## MC regime-force translation (orchestrator → quoter)
 
