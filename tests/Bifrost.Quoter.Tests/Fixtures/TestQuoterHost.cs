@@ -100,9 +100,16 @@ public sealed class TestQuoterHost : IAsyncDisposable
 
     /// <summary>
     /// Advance the FakeTimeProvider by <paramref name="seconds"/> in 500ms
-    /// increments (matching the Quoter's GbmStepMs default cadence). Each
-    /// step yields the scheduler so the awaiting PeriodicTimer.WaitForNextTickAsync
-    /// continuation can run before the next Advance.
+    /// increments (matching the Quoter's GbmStepMs default cadence). Between
+    /// each Advance the helper waits a short real-time interval so the
+    /// threadpool reliably schedules the awaiting PeriodicTimer continuation
+    /// and the Quoter tick body finishes before the next Advance fires.
+    /// <para>
+    /// Without the real-time wait, a same-seed run may capture a different
+    /// number of tick bodies because Task.Yield alone does not guarantee the
+    /// continuation has executed before the next FakeTimeProvider.Advance --
+    /// the QTR-01 byte-compare test then flaps between runs.
+    /// </para>
     /// </summary>
     public async Task AdvanceSecondsAsync(double seconds)
     {
@@ -112,11 +119,15 @@ public sealed class TestQuoterHost : IAsyncDisposable
         for (var i = 0; i < steps; i++)
         {
             Time.Advance(TimeSpan.FromMilliseconds(500));
-            // Yield twice: once for the timer continuation, once for any
-            // chained continuation inside the tick body.
-            await Task.Yield();
-            await Task.Yield();
+            // 1 ms real-time wait reliably gives the threadpool a chance to
+            // resume the WaitForNextTickAsync continuation and complete the
+            // tick body. Total cost across a 60-simulated-second test is ~120 ms
+            // wall-clock -- well within the 30s budget for this suite.
+            await Task.Delay(1);
         }
+        // Final settle so the last tick's body completes before the caller
+        // observes Captured.
+        await Task.Delay(1);
     }
 
     public async ValueTask DisposeAsync()
