@@ -139,7 +139,7 @@ public sealed class CancelAllOnTransitionTests
                 for (var level = 0; level < 3; level++)
                 {
                     var corr = new CorrelationId($"seed-{inst.DeliveryArea.Value}-{inst.DeliveryPeriod.Start.UtcTicks}-{side}-{level}");
-                    host.Tracker.TrackOrder(inst, side, level, corr);
+                    host.Tracker.TrackOrder(inst, side, level, corr, priceTicks: 5000L);
                     var accepted = new OrderAccepted(
                         OrderId: new OrderId(fakeOrderIdSeed++),
                         Instrument: inst,

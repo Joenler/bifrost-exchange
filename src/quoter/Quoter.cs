@@ -232,9 +232,11 @@ public sealed class Quoter : BackgroundService
         }
 
         // No working order at this slot -- fresh submit (TrackOrder records the
-        // correlation id; OnOrderAccepted will later attach the OrderId).
+        // correlation id + submit price; OnOrderAccepted will later attach the
+        // OrderId). The priceTicks write feeds the jitter guard in QuoteSide
+        // on the next tick once the slot promotes from pending to working.
         var corr = _commandCtx.SubmitLimitOrder(inst, side, priceTicks, qty);
-        _tracker.TrackOrder(inst, side, level, corr);
+        _tracker.TrackOrder(inst, side, level, corr, priceTicks);
     }
 
     /// <summary>
@@ -266,5 +268,12 @@ public sealed class Quoter : BackgroundService
             return;
 
         _commandCtx.ReplaceOrder(instrument, orderId, targetPrice, newQty: null);
+        // Keep the tracked slot's price in sync with the live wire target so
+        // the next tick's jitter guard (line above) reads fresh state. LevelOrder
+        // is a reference type (PyramidQuoteTracker.LevelOrder is a sealed class),
+        // so the mutation via the reference returned by TryGetTrackedSlot is
+        // visible on the next read. Without this write the guard always sees the
+        // stale submit price and every subsequent tick fires a Replace.
+        slot.PriceTicks = targetPrice;
     }
 }

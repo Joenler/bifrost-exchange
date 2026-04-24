@@ -75,7 +75,7 @@ public sealed class PyramidQuoteTrackerConcurrencyTests
                     var level = rng.Next(3);
                     var corrId = new CorrelationId($"corr-{corrCounter++}");
 
-                    tracker.TrackOrder(inst, side, level, corrId);
+                    tracker.TrackOrder(inst, side, level, corrId, priceTicks: 5000L);
 
                     if (corrCounter % 3 == 0)
                     {
@@ -143,7 +143,7 @@ public sealed class PyramidQuoteTrackerConcurrencyTests
                     var inst = instruments[rng.Next(instruments.Length)];
                     var side = rng.Next(2) == 0 ? Side.Buy : Side.Sell;
                     var level = rng.Next(3);
-                    tracker.TrackOrder(inst, side, level, new CorrelationId($"track-{counter++}"));
+                    tracker.TrackOrder(inst, side, level, new CorrelationId($"track-{counter++}"), priceTicks: 5000L);
                 }
             }
             catch (OperationCanceledException) { }

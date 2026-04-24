@@ -73,12 +73,17 @@ public sealed class PyramidQuoteTracker
         return newEntry;
     }
 
-    public void TrackOrder(InstrumentId instrument, Side side, int level, CorrelationId correlationId)
+    public void TrackOrder(InstrumentId instrument, Side side, int level, CorrelationId correlationId, long priceTicks)
     {
         var entry = GetOrCreate(instrument);
         var levels = side == Side.Buy ? entry.BuyLevels : entry.SellLevels;
         levels[level].CorrelationId = correlationId;
         levels[level].OrderId = null;
+        // Persist the submit price on the slot so Quoter.QuoteSide's jitter
+        // guard (Math.Abs(slot.PriceTicks - targetPrice) <= RequoteThresholdTicks)
+        // has a live value to compare against on the next tick. Without this
+        // write the guard always sees zero and every tick issues a Replace.
+        levels[level].PriceTicks = priceTicks;
         _pending[correlationId] = (instrument, side, level);
 
         ImmutableDictionary<CorrelationId, DateTimeOffset> tsSnap, tsUpd;
