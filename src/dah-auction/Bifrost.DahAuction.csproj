@@ -1,11 +1,21 @@
-<Project Sdk="Microsoft.NET.Sdk.Worker">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.Extensions.Hosting" />
+        <!-- Microsoft.Extensions.Hosting and Microsoft.Extensions.Logging.Abstractions are
+             supplied transitively by Microsoft.AspNetCore.App (the implicit FrameworkReference
+             from Microsoft.NET.Sdk.Web). Adding them as direct PackageReferences trips NU1510
+             ("will not be pruned") under TreatWarningsAsErrors. Polly.Core and RabbitMQ.Client
+             stay explicit — both are consumed directly from this host. -->
+        <PackageReference Include="Polly.Core" />
+        <PackageReference Include="RabbitMQ.Client" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\common\Bifrost.Time\Bifrost.Time.csproj" />
+        <ProjectReference Include="..\contracts-internal\Bifrost.Contracts.Internal\Bifrost.Contracts.Internal.csproj" />
+        <ProjectReference Include="..\exchange\Exchange.Application\Bifrost.Exchange.Application.csproj" />
+        <ProjectReference Include="..\exchange\Exchange.Domain\Bifrost.Exchange.Domain.csproj" />
+        <ProjectReference Include="..\exchange\Exchange.Infrastructure.RabbitMq\Bifrost.Exchange.Infrastructure.RabbitMq.csproj" />
     </ItemGroup>
 
 </Project>
