@@ -10,11 +10,14 @@
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="xunit.v3" />
         <PackageReference Include="xunit.runner.visualstudio" />
+        <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\quoter\Bifrost.Quoter.csproj" />
         <ProjectReference Include="..\..\src\exchange\Exchange.Domain\Bifrost.Exchange.Domain.csproj" />
+        <ProjectReference Include="..\..\src\exchange\Exchange.Application\Bifrost.Exchange.Application.csproj" />
+        <ProjectReference Include="..\..\src\common\Bifrost.Time\Bifrost.Time.csproj" />
     </ItemGroup>
 
     <ItemGroup>
