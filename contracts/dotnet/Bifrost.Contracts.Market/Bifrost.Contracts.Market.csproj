@@ -19,4 +19,8 @@
         <Protobuf Include="..\..\market.proto" ProtoRoot="..\.." GrpcServices="Both" />
     </ItemGroup>
 
+    <ItemGroup>
+        <ProjectReference Include="..\Bifrost.Contracts.Events\Bifrost.Contracts.Events.csproj" />
+    </ItemGroup>
+
 </Project>

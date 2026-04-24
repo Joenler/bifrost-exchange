@@ -38,10 +38,11 @@ from pathlib import Path
 # message or oneof variant MUST land a row here AND in CanonicalBuilders.cs
 # — CI fails fast on the first KeyError otherwise.
 TYPE_MAP: dict[str, tuple[str, str]] = {
-    # --- market.proto (3) ---
+    # --- market.proto (4) ---
     "market.Instrument": ("bifrost_contracts.market.market_pb2", "Instrument"),
     "market.BookLevel": ("bifrost_contracts.market.market_pb2", "BookLevel"),
     "market.BookView": ("bifrost_contracts.market.market_pb2", "BookView"),
+    "market.ImbalancePrint": ("bifrost_contracts.market.market_pb2", "ImbalancePrint"),
 
     # --- auction.proto (3) ---
     "auction.BidStep": ("bifrost_contracts.auction.auction_pb2", "BidStep"),
@@ -52,13 +53,14 @@ TYPE_MAP: dict[str, tuple[str, str]] = {
     "round.RoundState": ("bifrost_contracts.round.round_pb2", "RoundState"),
 
     # --- events.proto: Event wrapper (one row per oneof variant; all share
-    #                   the same Python Event class) (6) ---
+    #                   the same Python Event class) (6) + bare PhysicalShock (1) ---
     "events.Event.RegimeChange": ("bifrost_contracts.events.events_pb2", "Event"),
     "events.Event.ForecastRevision": ("bifrost_contracts.events.events_pb2", "Event"),
     "events.Event.News": ("bifrost_contracts.events.events_pb2", "Event"),
     "events.Event.MarketAlert": ("bifrost_contracts.events.events_pb2", "Event"),
     "events.Event.ConfigChange": ("bifrost_contracts.events.events_pb2", "Event"),
     "events.Event.PhysicalShock": ("bifrost_contracts.events.events_pb2", "Event"),
+    "events.PhysicalShock": ("bifrost_contracts.events.events_pb2", "PhysicalShock"),
 
     # --- strategy.proto: StrategyCommand oneof (5) ---
     "strategy.StrategyCommand.Register": ("bifrost_contracts.strategy.strategy_pb2", "StrategyCommand"),
@@ -67,7 +69,7 @@ TYPE_MAP: dict[str, tuple[str, str]] = {
     "strategy.StrategyCommand.OrderReplace": ("bifrost_contracts.strategy.strategy_pb2", "StrategyCommand"),
     "strategy.StrategyCommand.BidMatrixSubmit": ("bifrost_contracts.strategy.strategy_pb2", "StrategyCommand"),
 
-    # --- strategy.proto: MarketEvent oneof (11) ---
+    # --- strategy.proto: MarketEvent oneof (12) ---
     "strategy.MarketEvent.RegisterAck": ("bifrost_contracts.strategy.strategy_pb2", "MarketEvent"),
     "strategy.MarketEvent.BookUpdate": ("bifrost_contracts.strategy.strategy_pb2", "MarketEvent"),
     "strategy.MarketEvent.Trade": ("bifrost_contracts.strategy.strategy_pb2", "MarketEvent"),
@@ -79,6 +81,7 @@ TYPE_MAP: dict[str, tuple[str, str]] = {
     "strategy.MarketEvent.RoundState": ("bifrost_contracts.strategy.strategy_pb2", "MarketEvent"),
     "strategy.MarketEvent.Scorecard": ("bifrost_contracts.strategy.strategy_pb2", "MarketEvent"),
     "strategy.MarketEvent.PositionSnapshot": ("bifrost_contracts.strategy.strategy_pb2", "MarketEvent"),
+    "strategy.MarketEvent.ImbalancePrint": ("bifrost_contracts.strategy.strategy_pb2", "MarketEvent"),
 
     # --- mc.proto: McCommand oneof (21) ---
     "mc.McCommand.AuctionOpen": ("bifrost_contracts.mc.mc_pb2", "McCommand"),
@@ -103,7 +106,8 @@ TYPE_MAP: dict[str, tuple[str, str]] = {
     "mc.McCommand.LeaderboardReveal": ("bifrost_contracts.mc.mc_pb2", "McCommand"),
     "mc.McCommand.EventEnd": ("bifrost_contracts.mc.mc_pb2", "McCommand"),
 
-    # --- mc.proto: McCommandResult standalone (1) ---
+    # --- mc.proto: bare PhysicalShockCmd standalone (1) + McCommandResult standalone (1) ---
+    "mc.PhysicalShockCmd": ("bifrost_contracts.mc.mc_pb2", "PhysicalShockCmd"),
     "mc.McCommandResult": ("bifrost_contracts.mc.mc_pb2", "McCommandResult"),
 }
 

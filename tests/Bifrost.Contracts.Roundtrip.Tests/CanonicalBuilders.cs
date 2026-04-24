@@ -162,7 +162,7 @@ public static class CanonicalBuilders
         },
     };
 
-    public static Event BuildEventPhysicalShock() => new()
+    public static Event BuildEventPhysicalShock(int quarterIndex = 2) => new()
     {
         TimestampNs = 1_745_400_100_000_000_006L,
         Severity = Severity.Urgent,
@@ -171,7 +171,30 @@ public static class CanonicalBuilders
             Mw = -500,
             Label = "Gen-Trip-B1",
             Persistence = ShockPersistence.Round,
+            QuarterIndex = quarterIndex,
         },
+    };
+
+    // Bare PhysicalShock (unwrapped from Event) — proves quarter_index round-trips independently.
+    public static PhysicalShock BuildPhysicalShock(int quarterIndex = 2) => new()
+    {
+        Mw = -500,
+        Label = "Gen-Trip-B1",
+        Persistence = ShockPersistence.Round,
+        QuarterIndex = quarterIndex,
+    };
+
+    // ImbalancePrint — public per-QH realized imbalance print, broadcast at Gate.
+    public static ImbalancePrint BuildImbalancePrint() => new()
+    {
+        RoundNumber = 42,
+        Instrument = BuildInstrument(),
+        QuarterIndex = 2,
+        PImbTicks = 5_200_000L,
+        ATotalTicks = -30_000_000L,
+        APhysicalTicks = -30_000_000L,
+        Regime = Regime.Volatile,
+        TimestampNs = 1_745_400_000_000_000_109L,
     };
 
     // --- strategy.proto: StrategyCommand oneof ---
@@ -367,6 +390,13 @@ public static class CanonicalBuilders
         },
     };
 
+    public static MarketEvent BuildMarketEventImbalancePrint() => new()
+    {
+        Sequence = 12L,
+        TimestampNs = 1_745_400_000_000_000_112L,
+        ImbalancePrint = BuildImbalancePrint(),
+    };
+
     // --- mc.proto: McCommand oneof (21 variants) ---
     // Each wraps envelope fields (operator_host / confirm / dry_run) so those
     // also get exercised on every row.
@@ -489,7 +519,7 @@ public static class CanonicalBuilders
         return c;
     }
 
-    public static McCommand BuildMcCommandPhysicalShock()
+    public static McCommand BuildMcCommandPhysicalShock(int quarterIndex = 2)
     {
         var c = BaseMcCommand();
         c.PhysicalShock = new PhysicalShockCmd
@@ -497,9 +527,19 @@ public static class CanonicalBuilders
             Mw = -500,
             Label = "Gen-Trip-B1",
             Persistence = ShockPersistence.Transient,
+            QuarterIndex = quarterIndex,
         };
         return c;
     }
+
+    // Bare PhysicalShockCmd (unwrapped from McCommand) — proves quarter_index round-trips independently.
+    public static PhysicalShockCmd BuildPhysicalShockCmd(int quarterIndex = 2) => new()
+    {
+        Mw = -500,
+        Label = "Gen-Trip-B1",
+        Persistence = ShockPersistence.Transient,
+        QuarterIndex = quarterIndex,
+    };
 
     public static McCommand BuildMcCommandTeamKick()
     {
@@ -555,10 +595,11 @@ public static class CanonicalBuilders
     /// </summary>
     public static IEnumerable<(string TypeName, byte[] Bytes)> EveryRoundtripTarget()
     {
-        // --- market.proto (3) ---
+        // --- market.proto (4) ---
         yield return ("market.Instrument", BuildInstrument().ToByteArray());
         yield return ("market.BookLevel", BuildBookLevel().ToByteArray());
         yield return ("market.BookView", BuildBookView().ToByteArray());
+        yield return ("market.ImbalancePrint", BuildImbalancePrint().ToByteArray());
 
         // --- auction.proto (3) ---
         yield return ("auction.BidStep", BuildBidStep().ToByteArray());
@@ -568,13 +609,14 @@ public static class CanonicalBuilders
         // --- round.proto (1) ---
         yield return ("round.RoundState", BuildRoundState().ToByteArray());
 
-        // --- events.proto: Event oneof (6) ---
+        // --- events.proto: Event oneof (6) + bare PhysicalShock (1) ---
         yield return ("events.Event.RegimeChange", BuildEventRegimeChange().ToByteArray());
         yield return ("events.Event.ForecastRevision", BuildEventForecastRevision().ToByteArray());
         yield return ("events.Event.News", BuildEventNews().ToByteArray());
         yield return ("events.Event.MarketAlert", BuildEventMarketAlert().ToByteArray());
         yield return ("events.Event.ConfigChange", BuildEventConfigChange().ToByteArray());
         yield return ("events.Event.PhysicalShock", BuildEventPhysicalShock().ToByteArray());
+        yield return ("events.PhysicalShock", BuildPhysicalShock().ToByteArray());
 
         // --- strategy.proto: StrategyCommand oneof (5) ---
         yield return ("strategy.StrategyCommand.Register", BuildStrategyCommandRegister().ToByteArray());
@@ -583,7 +625,7 @@ public static class CanonicalBuilders
         yield return ("strategy.StrategyCommand.OrderReplace", BuildStrategyCommandOrderReplace().ToByteArray());
         yield return ("strategy.StrategyCommand.BidMatrixSubmit", BuildStrategyCommandBidMatrixSubmit().ToByteArray());
 
-        // --- strategy.proto: MarketEvent oneof (11) ---
+        // --- strategy.proto: MarketEvent oneof (12) ---
         yield return ("strategy.MarketEvent.RegisterAck", BuildMarketEventRegisterAck().ToByteArray());
         yield return ("strategy.MarketEvent.BookUpdate", BuildMarketEventBookUpdate().ToByteArray());
         yield return ("strategy.MarketEvent.Trade", BuildMarketEventTrade().ToByteArray());
@@ -595,6 +637,7 @@ public static class CanonicalBuilders
         yield return ("strategy.MarketEvent.RoundState", BuildMarketEventRoundState().ToByteArray());
         yield return ("strategy.MarketEvent.Scorecard", BuildMarketEventScorecard().ToByteArray());
         yield return ("strategy.MarketEvent.PositionSnapshot", BuildMarketEventPositionSnapshot().ToByteArray());
+        yield return ("strategy.MarketEvent.ImbalancePrint", BuildMarketEventImbalancePrint().ToByteArray());
 
         // --- mc.proto: McCommand oneof (21) ---
         yield return ("mc.McCommand.AuctionOpen", BuildMcCommandAuctionOpen().ToByteArray());
@@ -619,7 +662,8 @@ public static class CanonicalBuilders
         yield return ("mc.McCommand.LeaderboardReveal", BuildMcCommandLeaderboardReveal().ToByteArray());
         yield return ("mc.McCommand.EventEnd", BuildMcCommandEventEnd().ToByteArray());
 
-        // --- mc.proto: McCommandResult standalone (1) ---
+        // --- mc.proto: bare PhysicalShockCmd standalone (1) + McCommandResult standalone (1) ---
+        yield return ("mc.PhysicalShockCmd", BuildPhysicalShockCmd().ToByteArray());
         yield return ("mc.McCommandResult", BuildMcCommandResult().ToByteArray());
     }
 }
