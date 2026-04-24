@@ -55,3 +55,32 @@ The authoritative boundary enforcement belongs earlier in the pipeline:
 
 The imbalance simulator trusts that Phase 06 and Phase 06b honor this invariant.
 Simulator assertions exist as regression catchers, not as the primary contract.
+
+## Phase 05 dah-auction closure
+
+Phase 05 stood up `bifrost-exchange/src/dah-auction/` as an ASP.NET Core 10
+Minimal API service accepting `POST /auction/bid` on container + host port
+8080. Single-writer actor loop via `Channel<IAuctionCommand>` mutates the
+in-memory `(team_name, quarter_id) -> BidMatrix` map; `IRoundStateSource`
+drives `AuctionOpen -> AuctionClosed` clearing via the
+`UniformPriceClearing.Compute` algorithm (pedagogically documented per the
+EUPHEMIA Public Description).
+
+Wire topology added in Phase 05:
+
+- NEW direct exchange `bifrost.auction` for `ClearingResult` payload fan-out
+  (Phase 07 Gateway consumes per-team).
+- REUSE existing `bifrost.public` events exchange with routing keys
+  `events.auction.bid` / `events.auction.cleared` / `events.auction.no_cross`
+  (recorder audit trail).
+
+Recorder binding closure: the recorder queue now additionally binds to
+`bifrost.public` on pattern `events.#`. This catches the pre-existing
+quoter `events.regime.change` emissions plus all Phase 05 auction audit
+events. The legacy `bifrost.events.v1` exchange bindings (`order.#`,
+`lifecycle.#`) are preserved for compatibility with potential
+reintroduction of direct order/lifecycle publishers.
+
+Host port 8080 is bound by `dah-auction` on the compose stack. Phase 07
+Gateway and any future HTTP-facing services must negotiate alternative
+ports.
