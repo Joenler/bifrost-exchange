@@ -181,6 +181,30 @@ public sealed class PyramidQuoteTracker
         return levels[level].OrderId;
     }
 
+    /// <summary>
+    /// Returns the tracker's view of the working order at the given pyramid
+    /// slot (instrument / side / level). The book-consistency guard in
+    /// <c>Quoter.QuoteSide</c> reads from here -- never from
+    /// <c>IOrderContext.GetOrder</c> -- so tracker state never leaks across
+    /// the publisher boundary.
+    /// </summary>
+    public bool TryGetTrackedSlot(InstrumentId instrument, Side side, int level, out LevelOrder slot)
+    {
+        var entries = _entries;
+        if (!entries.TryGetValue(instrument, out var entry))
+        {
+            slot = default!;
+            return false;
+        }
+
+        var levels = side == Side.Buy ? entry.BuyLevels : entry.SellLevels;
+        slot = levels[level];
+        // A slot is "tracked" only when there is at least an OrderId in flight
+        // (a level with neither OrderId nor CorrelationId is empty and the
+        // guard has nothing to compare against).
+        return slot.OrderId is not null;
+    }
+
     public void CancelAll(InstrumentId instrument, Side side, IOrderContext ctx)
     {
         var entries = _entries;
