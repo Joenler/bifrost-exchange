@@ -1,0 +1,23 @@
+{
+  "$schema": "../schemas/scenario.schema.json",
+  "scenario_id": "calm-drift",
+  "description": "Single CALM beat, no Markov overlay — baseline for determinism tests",
+  "seed": 777,
+  "beats": [
+    { "t_offset_s": 0, "regime": "CALM", "duration_s": 600 }
+  ],
+  "markov_overlay": {
+    "transition_rates_per_s": {
+      "CALM": {},
+      "TRENDING": {},
+      "VOLATILE": {},
+      "SHOCK": {}
+    }
+  },
+  "regime_params": {
+    "CALM":     { "spread_multiplier": 1.0, "quantity_multiplier": 1.0, "gbm_drift": 0.0,  "gbm_vol": 0.02, "kappa": 1.5 },
+    "TRENDING": { "spread_multiplier": 1.2, "quantity_multiplier": 1.0, "gbm_drift": 0.05, "gbm_vol": 0.03, "kappa": 1.0 },
+    "VOLATILE": { "spread_multiplier": 2.0, "quantity_multiplier": 0.6, "gbm_drift": 0.0,  "gbm_vol": 0.08, "kappa": 0.5 },
+    "SHOCK":    { "spread_multiplier": 4.0, "quantity_multiplier": 0.3, "gbm_drift": 0.0,  "gbm_vol": 0.15, "kappa": 0.2 }
+  }
+}

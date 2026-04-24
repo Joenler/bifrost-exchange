@@ -34,6 +34,10 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+    volumes:
+      # D-19: dev swap for scenario JSON without rebuild. The Dockerfile also
+      # COPYs these into the image so CI smoke-build (no host bind) still boots.
+      - ./src/quoter/scenarios:/scenarios:ro
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s
