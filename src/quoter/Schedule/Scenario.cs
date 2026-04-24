@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Bifrost.Quoter.Pricing;
 
 namespace Bifrost.Quoter.Schedule;
@@ -19,8 +20,13 @@ public sealed record Scenario(
 /// <summary>
 /// One scripted regime segment. <paramref name="TOffsetSeconds"/> is measured
 /// from the round-start UTC anchor passed into <see cref="RegimeSchedule"/>.
+/// JSON key names abbreviate the unit suffix (<c>t_offset_s</c>, <c>duration_s</c>)
+/// to match the schema; the C# property names use the unabbreviated form.
 /// </summary>
-public sealed record Beat(double TOffsetSeconds, Regime Regime, double DurationSeconds);
+public sealed record Beat(
+    [property: JsonPropertyName("t_offset_s")] double TOffsetSeconds,
+    Regime Regime,
+    [property: JsonPropertyName("duration_s")] double DurationSeconds);
 
 /// <summary>
 /// Per-second Markov transition rates layered on top of the deterministic
@@ -29,6 +35,7 @@ public sealed record Beat(double TOffsetSeconds, Regime Regime, double DurationS
 /// in a single tick of length dt is approximately λ · dt.
 /// </summary>
 public sealed record MarkovOverlay(
+    [property: JsonPropertyName("transition_rates_per_s")]
     IReadOnlyDictionary<Regime, IReadOnlyDictionary<Regime, double>> TransitionRatesPerSecond);
 
 /// <summary>
