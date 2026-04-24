@@ -300,3 +300,39 @@ jobs:
         run: rg --version
       - name: Run scrub-gsd-negative.sh
         run: bash tests/scripts/scrub-gsd-negative.sh
+
+  docker-smoke-build:
+    # Prove every service image builds for linux/arm64 via QEMU on ubuntu-latest.
+    # Native ubuntu-24.04-arm runners rejected (billing coupling).
+    # Self-hosted runners rejected (ops cost disproportionate to smoke-gate value).
+    name: docker-smoke-build (${{ matrix.service }} / linux/arm64)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - exchange
+          - quoter
+          - imbalance
+          - recorder
+          - orchestrator
+          - gateway
+          - dah-auction
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build ${{ matrix.service }} image for linux/arm64 (smoke, no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/${{ matrix.service }}/Dockerfile
+          platforms: linux/arm64
+          push: false
+          load: false
+          cache-from: type=gha,scope=${{ matrix.service }}-arm64
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}-arm64
