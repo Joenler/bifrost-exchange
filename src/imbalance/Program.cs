@@ -124,8 +124,16 @@ builder.Services.AddHostedService<StartupLogger>();
 // channel for the actor loop to accumulate (clientId, QH) -> net_position.
 builder.Services.AddHostedService<FillConsumerHostedService>();
 
-// Remaining producer hosted services (shock consumer, forecast timer,
-// round-state bridge) wire onto the shared channel in later passes.
+// Shock consumer: subscribes to events.physical.shock on the public topic
+// exchange, defensively range-checks the per-quarter index (drops out-of-range
+// shocks with an Error log so an upstream contract regression surfaces
+// loudly), and enqueues ShockMessage onto the shared channel for A_physical
+// accumulation. The future orchestrator phase owns the publisher — until then
+// the binding is a no-op in production.
+builder.Services.AddHostedService<ShockConsumerHostedService>();
+
+// Remaining producer hosted services (forecast timer, round-state bridge)
+// wire onto the shared channel in later passes.
 builder.Services.AddHostedService<SimulatorActorLoop>();
 
 var host = builder.Build();
