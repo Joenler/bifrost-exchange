@@ -12,6 +12,7 @@ COPY ["src/common/Bifrost.Time/Bifrost.Time.csproj", "src/common/Bifrost.Time/"]
 COPY ["src/contracts-internal/Bifrost.Contracts.Internal/Bifrost.Contracts.Internal.csproj", "src/contracts-internal/Bifrost.Contracts.Internal/"]
 COPY ["src/recorder/Bifrost.Recorder.csproj", "src/recorder/"]
 RUN dotnet restore "src/recorder/Bifrost.Recorder.csproj"
+COPY contracts/ contracts/
 COPY src/ src/
 WORKDIR "/src/src/recorder"
 RUN dotnet build "Bifrost.Recorder.csproj" -c $BUILD_CONFIGURATION -o /app/build

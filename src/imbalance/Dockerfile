@@ -9,8 +9,10 @@ COPY ["Directory.Build.props", "./"]
 COPY ["Directory.Packages.props", "./"]
 COPY ["build/BannedSymbols.txt", "build/"]
 COPY ["src/common/Bifrost.Time/Bifrost.Time.csproj", "src/common/Bifrost.Time/"]
+COPY ["src/contracts-internal/Bifrost.Contracts.Internal/Bifrost.Contracts.Internal.csproj", "src/contracts-internal/Bifrost.Contracts.Internal/"]
 COPY ["src/imbalance/Bifrost.Imbalance.csproj", "src/imbalance/"]
 RUN dotnet restore "src/imbalance/Bifrost.Imbalance.csproj"
+COPY contracts/ contracts/
 COPY src/ src/
 WORKDIR "/src/src/imbalance"
 RUN dotnet build "Bifrost.Imbalance.csproj" -c $BUILD_CONFIGURATION -o /app/build

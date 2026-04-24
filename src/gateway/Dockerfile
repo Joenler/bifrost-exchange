@@ -9,8 +9,10 @@ COPY ["Directory.Build.props", "./"]
 COPY ["Directory.Packages.props", "./"]
 COPY ["build/BannedSymbols.txt", "build/"]
 COPY ["src/common/Bifrost.Time/Bifrost.Time.csproj", "src/common/Bifrost.Time/"]
+COPY ["src/contracts-internal/Bifrost.Contracts.Internal/Bifrost.Contracts.Internal.csproj", "src/contracts-internal/Bifrost.Contracts.Internal/"]
 COPY ["src/gateway/Bifrost.Gateway.csproj", "src/gateway/"]
 RUN dotnet restore "src/gateway/Bifrost.Gateway.csproj"
+COPY contracts/ contracts/
 COPY src/ src/
 WORKDIR "/src/src/gateway"
 RUN dotnet build "Bifrost.Gateway.csproj" -c $BUILD_CONFIGURATION -o /app/build
