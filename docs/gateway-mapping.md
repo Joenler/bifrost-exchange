@@ -76,9 +76,9 @@ string-encoded form for JavaScript-precision safety.
 | `bifrost.market.v1.Side` | — (enum projected to string at every row that uses it) | translator is the single string-switch site |
 | `bifrost.market.v1.OrderType` | — (enum projected to string at every row that uses it) | same |
 | `bifrost.round.v1.RoundState` | **BIFROST-specific — Phase 06** | see `MarketEvent.RoundState` row above |
-| `bifrost.auction.v1.BidStep` | **BIFROST-specific — Phase 05** | DTO lands with the DAH Auction Service |
-| `bifrost.auction.v1.BidMatrix` | **BIFROST-specific — Phase 05** | — |
-| `bifrost.auction.v1.ClearingResult` | **BIFROST-specific — Phase 05** | — |
+| `bifrost.auction.v1.BidStep` | `Bifrost.Contracts.Internal.Auction.BidStepDto` | `int64 price_ticks` 1:1 `long PriceTicks`; `int64 quantity_ticks` 1:1 `long QuantityTicks` (no QuantityScale at the auction boundary); round-trip covered by `AuctionBidStepTranslationTests` |
+| `bifrost.auction.v1.BidMatrix` | `Bifrost.Contracts.Internal.Auction.BidMatrixDto` | `string team_name`, `string quarter_id`, `repeated BidStep buy_steps/sell_steps`; round-trip covered by `AuctionBidMatrixTranslationTests` |
+| `bifrost.auction.v1.ClearingResult` | `Bifrost.Contracts.Internal.Auction.ClearingResultDto` | proto `string team_name = ""` (public summary) <-> DTO `string? TeamName = null`; positive `awarded_quantity_ticks` = net buy, negative = net sell; round-trip covered by `AuctionClearingResultTranslationTests` (summary + per-team) |
 
 ## MC surface (bidirectional — orchestrator gRPC)
 

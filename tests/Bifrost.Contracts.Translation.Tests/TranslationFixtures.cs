@@ -2,6 +2,7 @@ using Google.Protobuf;
 using Bifrost.Contracts.Internal;
 using Bifrost.Contracts.Internal.Commands;
 using Bifrost.Contracts.Internal.Shared;
+using AuctionProto = Bifrost.Contracts.Auction;
 using EventsProto = Bifrost.Contracts.Events;
 using MarketProto = Bifrost.Contracts.Market;
 using StrategyProto = Bifrost.Contracts.Strategy;
@@ -565,5 +566,69 @@ internal static class TranslationFixtures
         "Volatile" => EventsProto.Regime.Volatile,
         "Shock" => EventsProto.Regime.Shock,
         _ => throw new ArgumentException($"Unknown regime: {s}"),
+    };
+
+    // ========================================================================
+    // Auction Row A: BidStep <-> BidStepDto
+    // ========================================================================
+    //
+    // No proto-only fields; both fields map 1:1. No QuantityScale conversion —
+    // auction DTOs carry raw int64 for both price_ticks and quantity_ticks
+    // (no scale conversion at this boundary).
+
+    public static Bifrost.Contracts.Internal.Auction.BidStepDto ToInternal(AuctionProto.BidStep p) =>
+        new(PriceTicks: p.PriceTicks, QuantityTicks: p.QuantityTicks);
+
+    public static AuctionProto.BidStep ToProto(Bifrost.Contracts.Internal.Auction.BidStepDto d) => new()
+    {
+        PriceTicks = d.PriceTicks,
+        QuantityTicks = d.QuantityTicks,
+    };
+
+    // ========================================================================
+    // Auction Row B: BidMatrix <-> BidMatrixDto
+    // ========================================================================
+
+    public static Bifrost.Contracts.Internal.Auction.BidMatrixDto ToInternal(AuctionProto.BidMatrix p) =>
+        new(
+            TeamName: p.TeamName,
+            QuarterId: p.QuarterId,
+            BuySteps: p.BuySteps.Select(ToInternal).ToArray(),
+            SellSteps: p.SellSteps.Select(ToInternal).ToArray());
+
+    public static AuctionProto.BidMatrix ToProto(Bifrost.Contracts.Internal.Auction.BidMatrixDto d)
+    {
+        var m = new AuctionProto.BidMatrix
+        {
+            TeamName = d.TeamName,
+            QuarterId = d.QuarterId,
+        };
+        foreach (var s in d.BuySteps) m.BuySteps.Add(ToProto(s));
+        foreach (var s in d.SellSteps) m.SellSteps.Add(ToProto(s));
+        return m;
+    }
+
+    // ========================================================================
+    // Auction Row C: ClearingResult <-> ClearingResultDto
+    // ========================================================================
+    //
+    // ASYMMETRY: proto team_name is a string (defaults to ""); DTO TeamName is
+    // nullable (null = public-summary row). ToInternal maps team_name == "" ->
+    // TeamName == null; ToProto maps TeamName == null -> team_name = "". Both
+    // directions covered by Auction Row C translation tests.
+
+    public static Bifrost.Contracts.Internal.Auction.ClearingResultDto ToInternal(AuctionProto.ClearingResult p) =>
+        new(
+            QuarterId: p.QuarterId,
+            ClearingPriceTicks: p.ClearingPriceTicks,
+            AwardedQuantityTicks: p.AwardedQuantityTicks,
+            TeamName: string.IsNullOrEmpty(p.TeamName) ? null : p.TeamName);
+
+    public static AuctionProto.ClearingResult ToProto(Bifrost.Contracts.Internal.Auction.ClearingResultDto d) => new()
+    {
+        QuarterId = d.QuarterId,
+        ClearingPriceTicks = d.ClearingPriceTicks,
+        AwardedQuantityTicks = d.AwardedQuantityTicks,
+        TeamName = d.TeamName ?? string.Empty,
     };
 }
