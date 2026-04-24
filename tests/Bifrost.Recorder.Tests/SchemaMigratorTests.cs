@@ -21,7 +21,7 @@ public sealed class SchemaMigratorTests
     }
 
     [Fact]
-    public void ApplyPending_CreatesAllNineTables_OnFirstRun()
+    public void ApplyPending_CreatesAllTenTables_OnFirstRun()
     {
         using var db = new SessionDatabase("Data Source=:memory:");
         db.InitializePragmas();
@@ -40,6 +40,7 @@ public sealed class SchemaMigratorTests
         Assert.Contains("events", tables);
         Assert.Contains("mc_commands", tables);
         Assert.Contains("scorecards", tables);
+        Assert.Contains("imbalance_settlements", tables);
         Assert.Contains("schema_version", tables);
     }
 

@@ -115,3 +115,19 @@ CREATE TABLE scorecards (
     total TEXT NOT NULL,
     UNIQUE(round_number, client_id)
 );
+
+-- imbalance_settlements: per-team per-quarter imbalance settlement rows (append at v1 — schema_version stays 1).
+CREATE TABLE imbalance_settlements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts_ns INTEGER NOT NULL,
+    round_number INTEGER NOT NULL,
+    client_id TEXT NOT NULL,
+    instrument_id TEXT NOT NULL,
+    quarter_index INTEGER NOT NULL,
+    position_ticks INTEGER NOT NULL,
+    p_imb_ticks INTEGER NOT NULL,
+    imbalance_pnl_ticks INTEGER NOT NULL,
+    UNIQUE(round_number, client_id, quarter_index)
+);
+CREATE INDEX idx_imbalance_settlements_round_client ON imbalance_settlements(round_number, client_id);
+CREATE INDEX idx_imbalance_settlements_ts ON imbalance_settlements(ts_ns);
