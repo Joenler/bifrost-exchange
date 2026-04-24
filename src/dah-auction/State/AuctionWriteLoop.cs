@@ -1,8 +1,10 @@
 using System.Collections.Frozen;
 using System.Threading.Channels;
 using Bifrost.Contracts.Internal.Auction;
+using Bifrost.DahAuction.Clearing;
 using Bifrost.DahAuction.Commands;
 using Bifrost.DahAuction.Rabbit;
+using Bifrost.Exchange.Application;
 using Bifrost.Exchange.Application.RoundState;
 using Bifrost.Time;
 using Microsoft.Extensions.Hosting;
@@ -25,11 +27,10 @@ namespace Bifrost.DahAuction.State;
 /// Four command types processed:
 ///   - <see cref="SubmitBidCommand"/> — gate-check + map update +
 ///     <c>auction_bid</c> audit event.
-///   - <see cref="ClearCommand"/> — snapshot the map, run per-QH clearing,
-///     publish results. Body lives in <see cref="ProcessClearAsync"/>; the
-///     real compute-and-publish driver lands in a follow-up commit. The
-///     placeholder keeps the DI graph + integration-test fixtures exercising
-///     every other code path.
+///   - <see cref="ClearCommand"/> — snapshot the map, run the per-QH
+///     uniform-price pay-as-cleared scan, and fan results out via the
+///     publisher (direct bus + audit-event bus). Body lives in
+///     <see cref="ProcessClearAsync"/>.
 ///   - <see cref="ResetStateCommand"/> — clear map; <c>_acceptingBids</c> = false.
 ///     Idempotent.
 ///   - <see cref="OpenBidsCommand"/> — <c>_acceptingBids</c> = true.
@@ -46,6 +47,7 @@ public sealed class AuctionWriteLoop : BackgroundService
     private readonly Channel<IAuctionCommand> _channel;
     private readonly IRoundStateSource _roundState;
     private readonly AuctionPublisher _publisher;
+    private readonly InstrumentRegistry _registry;
     private readonly IClock _clock;
     private readonly ILogger<AuctionWriteLoop> _log;
 
@@ -68,12 +70,14 @@ public sealed class AuctionWriteLoop : BackgroundService
         Channel<IAuctionCommand> channel,
         IRoundStateSource roundState,
         AuctionPublisher publisher,
+        InstrumentRegistry registry,
         IClock clock,
         ILogger<AuctionWriteLoop> log)
     {
         _channel = channel;
         _roundState = roundState;
         _publisher = publisher;
+        _registry = registry;
         _clock = clock;
         _log = log;
 
@@ -185,13 +189,13 @@ public sealed class AuctionWriteLoop : BackgroundService
             RejectDetail: null));
     }
 
-    // ProcessClearAsync body is intentionally minimal here — the real
-    // snapshot + per-QH UniformPriceClearing.Compute + publish fan-out lands
-    // in a subsequent commit. Keeping the method in place means the DI graph
-    // and integration-test fixtures already exercise every other code path
-    // through the loop; the follow-up swaps the body without touching the
-    // rest of the file.
-    private Task ProcessClearAsync(ClearCommand clear, CancellationToken ct)
+    // ProcessClearAsync drives the per-QH clearing pipeline at the
+    // AuctionOpen -> AuctionClosed transition: snapshot the bid map, iterate
+    // the 4 quarter-hour instruments in deterministic order, run the pure
+    // clearing scan per QH, and fan results out via the AuctionPublisher
+    // (direct bifrost.auction for the Gateway consumer + bifrost.public
+    // audit events for the recorder).
+    private async Task ProcessClearAsync(ClearCommand clear, CancellationToken ct)
     {
         // Snapshot for determinism: the clearing input is a frozen copy of
         // the bid map so any further mutation during clearing cannot affect
@@ -199,12 +203,75 @@ public sealed class AuctionWriteLoop : BackgroundService
         // which is bounded by the registered-team count (≤ 8 per PROJECT.md)
         // times 4, so at worst ~32 entries — negligible.
         var snapshot = _bids.ToFrozenDictionary();
-        _log.LogWarning(
-            "AuctionWriteLoop.ProcessClearAsync placeholder — snapshot size={Count}, ClearCommand at {Ts}ns. Real clearing driver is a follow-up.",
-            snapshot.Count, clear.SnapshotTimestampNs);
-        _ = _clock; // suppress analyzer noise: _clock is reserved for the clearing driver
-        _ = ct;
-        return Task.CompletedTask;
+        _log.LogInformation(
+            "AuctionWriteLoop clearing — ClearCommand at {Ts}ns; snapshot size={Count}",
+            clear.SnapshotTimestampNs, snapshot.Count);
+
+        // Iterate the 4 QH instruments in deterministic order
+        // (GetQuarterInstruments returns ascending-start, ordinal tie-break).
+        foreach (var qhId in _registry.GetQuarterInstruments())
+        {
+            string qhString = qhId.ToString();
+
+            // Collect every team's bid matrix for this QH. Snapshot keys are
+            // (team, quarter_id) tuples; we want every matrix whose Quarter ==
+            // qhString, ordered by team_name ordinal for determinism.
+            var bidsForQh = snapshot
+                .Where(kv => string.Equals(kv.Key.Quarter, qhString, StringComparison.Ordinal))
+                .OrderBy(kv => kv.Key.Team, StringComparer.Ordinal)
+                .Select(kv => kv.Value)
+                .ToList();
+
+            var outcome = UniformPriceClearing.Compute(qhString, bidsForQh);
+
+            if (!outcome.DidCross)
+            {
+                // No-cross — emit 1 summary ClearingResult on the direct bus
+                // for the Gateway consumer + 1 auction_no_cross audit event on
+                // the public events bus for the recorder.
+                var summary = new ClearingResultDto(
+                    QuarterId: qhString,
+                    ClearingPriceTicks: 0L,
+                    AwardedQuantityTicks: 0L,
+                    TeamName: null);
+                await _publisher.PublishClearingResultAsync(summary, ct);
+                _publisher.PublishAuctionNoCrossEvent(qhString);
+                _log.LogWarning("Auction no-cross on {Qh}", qhString);
+                continue;
+            }
+
+            // Cross — emit 1 summary row (TeamName = null, AwardedQuantityTicks
+            // = 0) followed by N per-team rows. Contiguous batch per QH on the
+            // direct bifrost.auction bus; one auction_cleared audit event per
+            // QH on the public events bus.
+            var summaryRow = new ClearingResultDto(
+                QuarterId: qhString,
+                ClearingPriceTicks: outcome.ClearingPriceTicks,
+                AwardedQuantityTicks: 0L,
+                TeamName: null);
+            await _publisher.PublishClearingResultAsync(summaryRow, ct);
+            _publisher.PublishAuctionClearedEvent(summaryRow);
+
+            foreach (var (teamName, awardedQtyTicks) in outcome.Awards)
+            {
+                var perTeam = new ClearingResultDto(
+                    QuarterId: qhString,
+                    ClearingPriceTicks: outcome.ClearingPriceTicks,
+                    AwardedQuantityTicks: awardedQtyTicks,
+                    TeamName: teamName);
+                await _publisher.PublishClearingResultAsync(perTeam, ct);
+                // Per-team audit events are NOT emitted on bifrost.public —
+                // the summary audit row is sufficient for the recorder; the
+                // per-team rows go only on bifrost.auction for the Gateway's
+                // private per-stream fan-out.
+            }
+
+            _log.LogInformation(
+                "Auction cleared {Qh} at price={Price}ticks with {Teams} awards",
+                qhString, outcome.ClearingPriceTicks, outcome.Awards.Count);
+        }
+
+        _ = _clock; // _clock is reserved for any clock-stamped audit additions
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
