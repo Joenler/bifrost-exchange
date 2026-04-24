@@ -99,6 +99,22 @@ type has a RabbitMQ DTO".
 | `bifrost.mc.v1.ConfigSetCmd` | — (internal gRPC only) | emits `Event.ConfigChange` downstream via orchestrator |
 | `bifrost.mc.v1.LeaderboardRevealCmd` / `EventEndCmd` | — (internal gRPC only) | terminal MC signals |
 
+## MC regime-force translation (orchestrator → quoter)
+
+The MC `RegimeForceCmd` variant is the one MC command whose effect crosses
+the internal RabbitMQ fabric (the orchestrator translates it; the quoter
+consumes it). Listed separately from the MC surface table because both ends
+exist today.
+
+| gRPC (mc.proto) | Internal JSON DTO | Subscriber |
+|---|---|---|
+| `bifrost.mc.v1.McCommand.regime_force` carrying `RegimeForceCmd { regime: Regime, nonce: string (Guid) }` | `Bifrost.Quoter.Rabbit.McRegimeForceDto { Regime, Nonce: Guid }` published on exchange `bifrost.mc` with routing key `mc.regime.force` (queue `bifrost.mc.regime`) | `Bifrost.Quoter.Rabbit.McRegimeForceConsumer` (poll-mode `BackgroundService`) deserializes and forwards a `RegimeForceMessage` into the shared `Channel<RegimeForceMessage>` inbox; the quoter's `RegimeSchedule.InstallMcForce` enforces nonce idempotency via an `LruSet` so RabbitMQ at-least-once redeliveries are dropped. |
+
+The orchestrator (Phase 06) is responsible for issuing a fresh `Guid` nonce
+per force issuance. The quoter is the sole emitter of public
+`Event.RegimeChange` (routing key `events.regime.change` on
+`bifrost.public`); the orchestrator does NOT emit the public event itself.
+
 ## Envelope pattern (D-03)
 
 All RabbitMQ DTOs are wrapped in `Envelope<T>(MessageType, TimestampUtc,

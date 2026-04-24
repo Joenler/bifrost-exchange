@@ -60,6 +60,17 @@ public sealed class BufferedEventPublisher : IEventPublisher, IAsyncDisposable
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>
+    /// Channel-buffered passthrough of <see cref="RabbitMqEventPublisher.PublishPublicEvent"/>.
+    /// Used by the quoter for Event.RegimeChange emission so the publish call
+    /// never blocks the regime-transition critical section.
+    /// </summary>
+    public ValueTask PublishPublicEvent(string routingKey, string messageType, object @event)
+    {
+        _queue.Writer.TryWrite(() => _inner.PublishPublicEvent(routingKey, messageType, @event));
+        return ValueTask.CompletedTask;
+    }
+
     public ValueTask PublishPublicOrderStats(string instrumentId, object stats)
     {
         _queue.Writer.TryWrite(() => _inner.PublishPublicOrderStats(instrumentId, stats));

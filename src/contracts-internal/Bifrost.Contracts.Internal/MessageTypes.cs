@@ -31,4 +31,7 @@ public static class MessageTypes
     public const string DahPositions = "DahPositions";
     public const string ForecastSnapshot = "ForecastSnapshot";
     public const string FairValue = "FairValue";
+
+    // Public events bus payloads (events.proto::Event oneof variants).
+    public const string RegimeChange = "RegimeChange";
 }

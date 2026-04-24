@@ -124,6 +124,28 @@ public sealed class RabbitMqEventPublisher(IChannel channel, IClock clock) : IEv
             body);
     }
 
+    /// <summary>
+    /// Publishes a generic public-events payload (events.proto::Event oneof
+    /// variants such as RegimeChange, ForecastRevision, etc.) onto
+    /// <see cref="RabbitMqTopology.PublicExchange"/> with the caller-supplied
+    /// routing key and message-type discriminator. Quoter / orchestrator /
+    /// imbalance-simulator consumers all flow through here so the wire shape
+    /// (envelope + payload bytes) stays consistent.
+    /// </summary>
+    public async ValueTask PublishPublicEvent(string routingKey, string messageType, object @event)
+    {
+        var envelope = new Envelope<object>(messageType, clock.GetUtcNow(),
+            null, null, null, null, @event);
+        var body = Serialize(envelope);
+
+        await channel.BasicPublishAsync(
+            RabbitMqTopology.PublicExchange,
+            routingKey,
+            false,
+            new BasicProperties { ContentType = "application/json" },
+            body);
+    }
+
     private static (string RoutingKey, string MessageType) ResolvePrivateRouting(string clientId, object @event)
     {
         return @event switch

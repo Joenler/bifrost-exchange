@@ -13,6 +13,7 @@
         <ProjectReference Include="..\exchange\Exchange.Application\Bifrost.Exchange.Application.csproj" />
         <ProjectReference Include="..\exchange\Exchange.Domain\Bifrost.Exchange.Domain.csproj" />
         <ProjectReference Include="..\exchange\Exchange.Infrastructure.RabbitMq\Bifrost.Exchange.Infrastructure.RabbitMq.csproj" />
+        <ProjectReference Include="..\..\contracts\dotnet\Bifrost.Contracts.Events\Bifrost.Contracts.Events.csproj" />
     </ItemGroup>
 
 </Project>

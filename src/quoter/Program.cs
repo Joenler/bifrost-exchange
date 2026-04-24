@@ -104,9 +104,12 @@ builder.Services.AddSingleton(sp =>
         sp.GetRequiredService<Bifrost.Exchange.Infrastructure.RabbitMq.RabbitMqEventPublisher>(),
         sp.GetService<ILogger<Bifrost.Exchange.Infrastructure.RabbitMq.BufferedEventPublisher>>()));
 
-// Regime-change publisher -- NoOp logs only; Plan 6 swaps this binding to the
-// RabbitMQ-backed RegimeChangePublisher once the Rabbit/ namespace lands.
-builder.Services.AddSingleton<IRegimeChangePublisher, NoOpRegimeChangePublisher>();
+// Regime-change publisher -- RabbitMQ-backed via Phase 02 BufferedEventPublisher.
+// Emits Event.RegimeChange on bifrost.public with routing key
+// events.regime.change. Non-blocking: BufferedEventPublisher's drain task
+// owns the AMQP I/O so the quoter's regime-transition critical section never
+// stalls on broker round-trips.
+builder.Services.AddSingleton<IRegimeChangePublisher, RegimeChangePublisher>();
 
 // Pricing primitives. The GBM model is constructed against the scenario seed
 // so replays are bit-for-bit identical.
