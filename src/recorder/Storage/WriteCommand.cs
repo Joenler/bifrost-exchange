@@ -77,3 +77,14 @@ public sealed record EventWrite(
     string Severity,
     string PayloadJson,
     long ReceivedAtNs) : WriteCommand(ReceivedAtNs);
+
+public sealed record ImbalanceSettlementWrite(
+    long TsNs,
+    int RoundNumber,
+    string ClientId,
+    string InstrumentId,
+    int QuarterIndex,
+    long PositionTicks,
+    long PImbTicks,
+    long ImbalancePnlTicks,
+    long ReceivedAtNs) : WriteCommand(ReceivedAtNs);

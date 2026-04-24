@@ -128,6 +128,19 @@ public sealed class RabbitMqRecorderConsumer : BackgroundService
             RecorderTopology.RecorderEventsQueue, RecorderTopology.TraderEventsExchange,
             RecorderTopology.LifecycleRoutingKey, cancellationToken: stoppingToken);
 
+        // Second exchange binding: imbalance-simulator publishes per-team
+        // ImbalanceSettlement envelopes to bifrost.private with routing key
+        // private.imbalance.settlement.<clientId>. The recorder reuses the
+        // existing RecorderEventsQueue (single-queue, multi-binding) to
+        // capture them alongside the order/lifecycle stream.
+        await _consumeChannel.ExchangeDeclareAsync(
+            RecorderTopology.PrivateExchange, ExchangeType.Topic, durable: true,
+            cancellationToken: stoppingToken);
+        await _consumeChannel.QueueBindAsync(
+            RecorderTopology.RecorderEventsQueue, RecorderTopology.PrivateExchange,
+            RecorderTopology.ImbalanceSettlementRoutingKey,
+            cancellationToken: stoppingToken);
+
         var eventsConsumer = new AsyncEventingBasicConsumer(_consumeChannel);
         eventsConsumer.ReceivedAsync += async (_, ea) =>
         {
@@ -244,6 +257,10 @@ public sealed class RabbitMqRecorderConsumer : BackgroundService
 
             case MessageTypes.PublicTrade:
                 DispatchPublicTrade(envelope.Payload, receivedAtNs);
+                break;
+
+            case MessageTypes.ImbalanceSettlement:
+                DispatchImbalanceSettlement(envelope.Payload, receivedAtNs);
                 break;
 
             default:
@@ -407,6 +424,23 @@ public sealed class RabbitMqRecorderConsumer : BackgroundService
             Quantity: e.Quantity,
             AggressorSide: e.AggressorSide,
             Sequence: e.Sequence,
+            ReceivedAtNs: receivedAtNs));
+    }
+
+    private void DispatchImbalanceSettlement(JsonElement payload, long receivedAtNs)
+    {
+        var e = payload.Deserialize(RecorderJsonContext.Default.ImbalanceSettlementEvent);
+        if (e is null) return;
+
+        TryWrite(new ImbalanceSettlementWrite(
+            TsNs: e.TimestampNs,
+            RoundNumber: e.RoundNumber,
+            ClientId: e.ClientId,
+            InstrumentId: FormatInstrument(e.InstrumentId),
+            QuarterIndex: e.QuarterIndex,
+            PositionTicks: e.PositionTicks,
+            PImbTicks: e.PImbTicks,
+            ImbalancePnlTicks: e.ImbalancePnlTicks,
             ReceivedAtNs: receivedAtNs));
     }
 
