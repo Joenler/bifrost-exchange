@@ -10,7 +10,6 @@ using Bifrost.Quoter.Mocks;
 using Bifrost.Quoter.Pricing;
 using Bifrost.Quoter.Rabbit;
 using Bifrost.Quoter.Schedule;
-using Bifrost.Quoter.Stubs;
 using Bifrost.Time;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -89,19 +88,15 @@ builder.Services.AddSingleton<Channel<RegimeForceMessage>>(_ =>
     Channel.CreateBounded<RegimeForceMessage>(64));
 
 // Buffered event publisher -- Phase 02 donation, channel-backed wrapper around
-// RabbitMqEventPublisher. Owns its own publisher channel so it does not
-// contend with the consumer channel for AMQP frames.
+// RabbitMqEventPublisher. Each AMQP publisher owns its own dedicated IChannel
+// because RabbitMQ.Client 7.x channels are NOT thread-safe and the buffered
+// publisher's drain task runs concurrently with the quoter's tick loop.
 builder.Services.AddSingleton(sp =>
 {
     var conn = sp.GetRequiredService<IConnection>();
-    return conn.CreateChannelAsync().GetAwaiter().GetResult();
-});
-
-builder.Services.AddSingleton(sp =>
-{
-    var publishChannel = sp.GetRequiredService<IChannel>();
+    var eventsChannel = conn.CreateChannelAsync().GetAwaiter().GetResult();
     var clock = sp.GetRequiredService<IClock>();
-    return new Bifrost.Exchange.Infrastructure.RabbitMq.RabbitMqEventPublisher(publishChannel, clock);
+    return new Bifrost.Exchange.Infrastructure.RabbitMq.RabbitMqEventPublisher(eventsChannel, clock);
 });
 
 builder.Services.AddSingleton(sp =>
@@ -127,10 +122,19 @@ builder.Services.AddSingleton(sp =>
 
 builder.Services.AddSingleton(_ => new PyramidQuoteTracker(maxLevels: 3, TimeProvider.System));
 
-// IOrderContext stub — kept under src/quoter/Stubs/ so the QuoterCommandPublisher
-// swap-in can unconditionally delete the file. Build-green shim while the
-// RabbitMQ command publisher is offline.
-builder.Services.AddSingleton<IOrderContext, NoOpOrderContext>();
+// IOrderContext live binding -- QuoterCommandPublisher publishes order commands
+// to the Phase 02 internal RabbitMQ command fabric (bifrost.cmd) with
+// ClientId = "quoter". Owns a dedicated IChannel because RabbitMQ.Client 7.x
+// channels are not thread-safe and this channel must not be shared with the
+// BufferedEventPublisher's drain loop.
+builder.Services.AddSingleton<IOrderContext>(sp =>
+{
+    var conn = sp.GetRequiredService<IConnection>();
+    var commandChannel = conn.CreateChannelAsync().GetAwaiter().GetResult();
+    var clock = sp.GetRequiredService<IClock>();
+    var log = sp.GetRequiredService<ILogger<QuoterCommandPublisher>>();
+    return new QuoterCommandPublisher(commandChannel, clock, log);
+});
 
 // Inbound MC regime-force consumer (poll-mode BackgroundService).
 builder.Services.AddHostedService<McRegimeForceConsumer>();
