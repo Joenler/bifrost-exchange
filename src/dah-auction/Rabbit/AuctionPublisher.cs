@@ -32,7 +32,7 @@ namespace Bifrost.DahAuction.Rabbit;
 /// <c>RabbitMqEventPublisher</c> so both publishers produce wire-identical
 /// envelope shapes.
 /// </remarks>
-public sealed class AuctionPublisher
+public sealed class AuctionPublisher : IAuctionPublisher
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

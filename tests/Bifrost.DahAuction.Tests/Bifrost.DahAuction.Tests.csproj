@@ -12,6 +12,13 @@
         <PackageReference Include="xunit.runner.visualstudio" />
     </ItemGroup>
 
+    <!-- Transitively pulls Microsoft.AspNetCore.App so integration tests can
+         spin up a WebApplication in-process (Kestrel + minimal-API endpoints)
+         and exercise the same composition root the production host uses. -->
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
     <ItemGroup>
         <ProjectReference Include="..\..\src\dah-auction\Bifrost.DahAuction.csproj" />
         <ProjectReference Include="..\..\src\contracts-internal\Bifrost.Contracts.Internal\Bifrost.Contracts.Internal.csproj" />

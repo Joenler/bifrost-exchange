@@ -46,7 +46,7 @@ public sealed class AuctionWriteLoop : BackgroundService
 {
     private readonly Channel<IAuctionCommand> _channel;
     private readonly IRoundStateSource _roundState;
-    private readonly AuctionPublisher _publisher;
+    private readonly IAuctionPublisher _publisher;
     private readonly InstrumentRegistry _registry;
     private readonly IClock _clock;
     private readonly ILogger<AuctionWriteLoop> _log;
@@ -69,7 +69,7 @@ public sealed class AuctionWriteLoop : BackgroundService
     public AuctionWriteLoop(
         Channel<IAuctionCommand> channel,
         IRoundStateSource roundState,
-        AuctionPublisher publisher,
+        IAuctionPublisher publisher,
         InstrumentRegistry registry,
         IClock clock,
         ILogger<AuctionWriteLoop> log)

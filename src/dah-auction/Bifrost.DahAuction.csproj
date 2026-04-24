@@ -18,4 +18,12 @@
         <ProjectReference Include="..\exchange\Exchange.Infrastructure.RabbitMq\Bifrost.Exchange.Infrastructure.RabbitMq.csproj" />
     </ItemGroup>
 
+    <!-- Expose internal types (e.g. AuctionJsonSerializerContext) to the
+         integration-test project so its in-process WebApplication harness can
+         register the same source-generated JSON resolver the production host
+         uses on the inbound /auction/bid path. -->
+    <ItemGroup>
+        <InternalsVisibleTo Include="Bifrost.DahAuction.Tests" />
+    </ItemGroup>
+
 </Project>

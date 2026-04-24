@@ -127,7 +127,7 @@ builder.Services.AddSingleton<BufferedEventPublisher>(sp =>
         sp.GetRequiredService<RabbitMqEventPublisher>(),
         sp.GetService<ILogger<BufferedEventPublisher>>()));
 
-builder.Services.AddSingleton<AuctionPublisher>(sp =>
+builder.Services.AddSingleton<IAuctionPublisher>(sp =>
 {
     var conn = sp.GetRequiredService<IConnection>();
     var directChannel = conn.CreateChannelAsync().GetAwaiter().GetResult();
