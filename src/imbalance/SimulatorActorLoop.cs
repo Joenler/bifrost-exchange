@@ -121,6 +121,7 @@ public sealed class SimulatorActorLoop : BackgroundService
         }
 
         var key = (fill.ClientId, fill.QuarterIndex);
+        // bifrost-lint: compound-ok — Dictionary (not ConcurrentDictionary) accessed by single-writer SimulatorActorLoop
         _state.NetPositions.TryGetValue(key, out var current);
         _state.NetPositions[key] = current + fill.QuantityTicks;
     }
