@@ -13,8 +13,8 @@ namespace Bifrost.Imbalance.HostedServices;
 /// the injected <see cref="TimeProvider"/> so tests substitute
 /// <c>FakeTimeProvider</c> and advance virtual time deterministically —
 /// <c>FakeTimeProvider.Advance(TimeSpan.FromSeconds(TForecastSeconds))</c> fires
-/// exactly one tick. No <c>Task.Delay</c> in production so wall-clock cannot
-/// affect scoring.
+/// exactly one tick. No wall-clock delay in production so scoring cannot
+/// drift with real time.
 /// <para>
 /// Round-state gating lives in the drain loop, not here. The producer is
 /// round-agnostic — it emits on every cadence tick regardless of state. The
