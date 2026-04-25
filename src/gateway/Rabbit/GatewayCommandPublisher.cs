@@ -25,9 +25,10 @@ namespace Bifrost.Gateway.Rabbit;
 /// <c>cmd.order.{submit|cancel|replace}</c> routing keys — same surface the
 /// matching engine's <c>CommandConsumerService</c> already consumes.
 ///
-/// Each publish method contains its own <c>BasicPublishAsync</c> call (per
-/// 07-05-PLAN.md acceptance fence) so a future surgical change to a single
-/// command's wire properties stays localised to that method.
+/// Each publish method contains its own <c>BasicPublishAsync</c> call (matching
+/// the per-routing-key acceptance fence in this class's tests) so a future
+/// surgical change to a single command's wire properties stays localised to
+/// that method.
 /// </summary>
 public sealed class GatewayCommandPublisher : IGatewayCommandPublisher, IAsyncDisposable
 {

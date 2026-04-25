@@ -53,7 +53,7 @@ public static class MessageTypes
     public const string ConfigChange = "ConfigChange";
     public const string McCommandLog = "McCommandLog";
 
-    // Gateway-originated outbound (Phase 07 — strategy.proto MarketEvent oneof variants the gateway alone produces).
+    // Gateway-originated outbound (strategy.proto MarketEvent oneof variants the gateway alone produces).
     public const string PositionSnapshot = "PositionSnapshot";
     public const string RegisterAck = "RegisterAck";
     public const string GatewayHeartbeat = "GatewayHeartbeat";

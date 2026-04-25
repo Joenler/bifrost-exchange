@@ -61,5 +61,5 @@ out in arrival order with no intentional per-team delay (Plan 06 owns those cons
 
 - ADR-0002 (gateway architecture)
 - 07-RESEARCH.md §Code Examples §Pattern 5 (port instructions)
-- 07-CONTEXT.md D-15..D-17 (cohort assignment + count + jitter magnitudes)
+- D-15..D-17 (cohort assignment + count + jitter magnitudes)
 - ./UPSTREAM.md (Arena donor SHA + 4 rewrites)

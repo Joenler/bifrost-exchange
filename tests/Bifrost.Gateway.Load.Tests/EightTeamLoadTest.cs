@@ -38,8 +38,8 @@ public class EightTeamLoadTest : IClassFixture<RabbitMqContainerFixture>
         // Emit load-report.json next to the test binaries — ci-gateway-load.yml
         // locates it via `find tests/Bifrost.Gateway.Load.Tests/bin/Release -name load-report.json`.
         // SnakeCaseLower ⇒ keys are p50_inbound_ms, p99_inbound_ms, p50_fanout_ms,
-        // p99_fanout_ms, msg_count, duration_s — exactly what 07-CONTEXT.md §Specifics
-        // line 199 calls out and what the jq filter expects.
+        // p99_fanout_ms, msg_count, duration_s — the exact keys the workflow's
+        // jq SLO filter reads (see ci-gateway-load.yml step "Assert SLO thresholds").
         var path = Path.Combine(AppContext.BaseDirectory, "load-report.json");
         var json = JsonSerializer.Serialize(report, new JsonSerializerOptions
         {
