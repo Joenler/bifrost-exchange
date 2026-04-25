@@ -10,7 +10,7 @@ namespace Bifrost.Recorder.Infrastructure;
 /// any future direct order/lifecycle publisher.
 /// </summary>
 /// <remarks>
-/// The recorder queue is bound to three sources, all multiplexed into the
+/// The recorder queue is bound to four sources, all multiplexed into the
 /// single <see cref="RecorderEventsQueue"/>:
 /// <list type="number">
 /// <item>
@@ -33,6 +33,13 @@ namespace Bifrost.Recorder.Infrastructure;
 /// <c>events.auction.no_cross</c> rows, the quoter's
 /// <c>events.regime.change</c> rows, and any future public audit publishers.
 /// All land in the existing <c>events</c> table without schema change.
+/// </item>
+/// <item>
+/// MC command audit envelopes on <see cref="McAuditExchange"/> with routing
+/// pattern <see cref="McCommandRoutingPattern"/> (Phase 06 D-23). Every
+/// orchestrator-published <c>McCommandLog</c> — accepted or rejected — fans
+/// into the recorder queue and lands in the Phase 02-shipped (empty)
+/// <c>mc_commands</c> table.
 /// </item>
 /// </list>
 /// </remarks>
@@ -79,4 +86,25 @@ public static class RecorderTopology
     /// via <see cref="RecorderEventsQueue"/>.
     /// </summary>
     public const string PublicEventsRoutingKey = "events.#";
+
+    /// <summary>
+    /// MC command audit-stream topic exchange (Phase 06 D-23). Owned by the
+    /// orchestrator (see
+    /// <c>Bifrost.Orchestrator.Rabbit.OrchestratorRabbitMqTopology.McAuditExchange</c>);
+    /// duplicated here as a string constant to keep the recorder free of a
+    /// cross-project reference into the orchestrator assembly. The
+    /// orchestrator publishes one <c>McCommandLog</c> envelope per processed
+    /// <c>McCommand</c> — accepted or rejected — on this exchange.
+    /// </summary>
+    public const string McAuditExchange = "bifrost.mc.v1";
+
+    /// <summary>
+    /// Routing-key pattern bound to <see cref="RecorderEventsQueue"/> against
+    /// <see cref="McAuditExchange"/>. Wildcard subset of the orchestrator's
+    /// per-command keys (<c>mc.command.{cmd_snake}</c>) — every command
+    /// audit envelope multiplexes into the existing recorder queue and
+    /// lands in the Phase 02-shipped (empty) <c>mc_commands</c> table
+    /// without a schema migration (D-12 zero-migrations posture).
+    /// </summary>
+    public const string McCommandRoutingPattern = "mc.command.#";
 }

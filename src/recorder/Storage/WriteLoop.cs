@@ -176,6 +176,7 @@ public sealed class WriteLoop : BackgroundService
         var rejects = new List<RejectWrite>();
         var events = new List<EventWrite>();
         var imbalanceSettlements = new List<ImbalanceSettlementWrite>();
+        var mcCommands = new List<McCommandWrite>();
 
         foreach (var cmd in batch)
         {
@@ -201,6 +202,9 @@ public sealed class WriteLoop : BackgroundService
                     break;
                 case ImbalanceSettlementWrite imb:
                     imbalanceSettlements.Add(imb);
+                    break;
+                case McCommandWrite mc:
+                    mcCommands.Add(mc);
                     break;
             }
         }
@@ -245,6 +249,12 @@ public sealed class WriteLoop : BackgroundService
         {
             _db.InsertImbalanceSettlements(imbalanceSettlements);
             _logger.LogDebug("Flushed {Count} imbalance settlements", imbalanceSettlements.Count);
+        }
+
+        if (mcCommands.Count > 0)
+        {
+            _db.InsertMcCommands(mcCommands);
+            _logger.LogDebug("Flushed {Count} mc commands", mcCommands.Count);
         }
 
         var elapsedMs = Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;

@@ -88,3 +88,20 @@ public sealed record ImbalanceSettlementWrite(
     long PImbTicks,
     long ImbalancePnlTicks,
     long ReceivedAtNs) : WriteCommand(ReceivedAtNs);
+
+/// <summary>
+/// Audit-log row for the Phase 06-shipped <c>bifrost.mc.v1/mc.command.#</c>
+/// stream. Every orchestrator-processed <c>McCommand</c> — accepted or
+/// rejected — produces one of these per CONTEXT D-23. <see cref="ResultJson"/>
+/// is the recorder-synthesised composite of (success, message, new_state)
+/// from the source <c>McCommandLogPayload</c>; rejected commands carry
+/// <c>"success":false</c> and the rejection detail in <c>message</c> — they
+/// are NOT dropped from the audit log (SPEC Req 10).
+/// </summary>
+public sealed record McCommandWrite(
+    long TsNs,
+    string Command,
+    string ArgsJson,
+    string ResultJson,
+    string OperatorHostname,
+    long ReceivedAtNs) : WriteCommand(ReceivedAtNs);

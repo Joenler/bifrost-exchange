@@ -323,6 +323,55 @@ public sealed class SessionDatabase : IDisposable
         transaction.Commit();
     }
 
+    /// <summary>
+    /// Bulk-insert MC command audit rows into the Phase 02-shipped
+    /// <c>mc_commands</c> table. Mirrors the <see cref="InsertEvents"/>
+    /// prepared-statement shape from PATTERNS §H — single transaction, single
+    /// reused command, parameter values reset per row.
+    /// </summary>
+    /// <remarks>
+    /// Phase 06 D-23: the orchestrator publishes one envelope per processed
+    /// <c>McCommand</c> on <c>bifrost.mc.v1/mc.command.{cmd_snake}</c>; the
+    /// recorder consumes via <see cref="Infrastructure.RabbitMqRecorderConsumer"/>
+    /// and routes here. Schema unchanged from
+    /// <c>Migrations/001_initial.sql</c> — D-12 zero-migrations posture.
+    /// </remarks>
+    public void InsertMcCommands(IReadOnlyList<McCommandWrite> batch)
+    {
+        if (batch.Count == 0) return;
+
+        using var transaction = _connection.BeginTransaction();
+
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO mc_commands (
+                ts_ns, command, args_json, result_json, operator_hostname
+            ) VALUES (
+                $ts_ns, $command, $args_json, $result_json, $operator_hostname
+            )
+            """;
+
+        var pTs = cmd.Parameters.Add("$ts_ns", SqliteType.Integer);
+        var pCommand = cmd.Parameters.Add("$command", SqliteType.Text);
+        var pArgs = cmd.Parameters.Add("$args_json", SqliteType.Text);
+        var pResult = cmd.Parameters.Add("$result_json", SqliteType.Text);
+        var pHost = cmd.Parameters.Add("$operator_hostname", SqliteType.Text);
+
+        cmd.Prepare();
+
+        foreach (var w in batch)
+        {
+            pTs.Value = w.TsNs;
+            pCommand.Value = w.Command;
+            pArgs.Value = w.ArgsJson;
+            pResult.Value = w.ResultJson;
+            pHost.Value = w.OperatorHostname;
+            cmd.ExecuteNonQuery();
+        }
+
+        transaction.Commit();
+    }
+
     public void InsertImbalanceSettlements(IReadOnlyList<ImbalanceSettlementWrite> batch)
     {
         if (batch.Count == 0) return;

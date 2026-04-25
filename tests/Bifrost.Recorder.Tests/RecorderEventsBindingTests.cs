@@ -52,6 +52,37 @@ public sealed class RecorderEventsBindingTests
         Assert.Contains("events.#", text);
     }
 
+    [Fact]
+    public void Topology_DeclaresMcAuditExchangeAndCommandRoutingKey()
+    {
+        // Phase 06 D-23: the recorder binds bifrost.mc.v1/mc.command.# into
+        // the existing recorder queue so every orchestrator-published
+        // McCommandLog envelope multiplexes into mc_commands without a
+        // schema migration. Lock the constants — the orchestrator's
+        // OrchestratorRabbitMqTopology.McAuditExchange must use the same
+        // exchange name; the routing-key pattern is the wildcard subset of
+        // the orchestrator's per-command snake_case routing keys.
+        Assert.Equal("bifrost.mc.v1", RecorderTopology.McAuditExchange);
+        Assert.Equal("mc.command.#", RecorderTopology.McCommandRoutingPattern);
+    }
+
+    [Fact]
+    public void RabbitMqRecorderConsumer_SourceContains_McAuditBinding()
+    {
+        // Source-level grep that the recorder's ExecuteAsync wires the
+        // bifrost.mc.v1 / mc.command.# binding alongside the three existing
+        // bindings. This catches the regression where a future edit removes
+        // the audit binding by accident — orchestrator-published McCommandLog
+        // envelopes would silently stop landing in mc_commands without these
+        // guards.
+        var sourcePath = FindSourceFile(
+            Path.Combine("src", "recorder", "Infrastructure", "RabbitMqRecorderConsumer.cs"));
+        var text = File.ReadAllText(sourcePath);
+        Assert.Contains("McAuditExchange", text);
+        Assert.Contains("McCommandRoutingPattern", text);
+        Assert.Contains("DispatchMcCommandLog", text);
+    }
+
     /// <summary>
     /// Walks up from the test bin's <see cref="AppContext.BaseDirectory"/>
     /// until the requested relative path resolves. Avoids hard-coding the

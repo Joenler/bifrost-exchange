@@ -26,4 +26,5 @@ namespace Bifrost.Recorder.Infrastructure;
 [JsonSerializable(typeof(PublicTradeEvent))]
 [JsonSerializable(typeof(ImbalanceSettlementEvent))]
 [JsonSerializable(typeof(McCommandLogPayload))]
+[JsonSerializable(typeof(McCommandResultJson))]
 internal partial class RecorderJsonContext : JsonSerializerContext;

@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Threading.Channels;
 using Bifrost.Contracts.Internal;
 using Bifrost.Contracts.Internal.Events;
+using Bifrost.Contracts.Internal.McLog;
 using Bifrost.Recorder.Infrastructure;
 using Bifrost.Recorder.Session;
 using Bifrost.Recorder.Storage;
@@ -332,6 +333,71 @@ public sealed class RecorderPersistenceTests : IDisposable
         Assert.Equal("PhysicalShock", row.kind);
         Assert.Equal("info", row.severity);
         Assert.Contains("Generator trip", row.payload_json);
+    }
+
+    [Fact]
+    public async Task McCommandLog_LandsInMcCommandsTable_WithResultJsonAndOperatorHostname()
+    {
+        // Phase 06 D-23: bifrost.mc.v1/mc.command.# audit envelopes land in the
+        // mc_commands table (Phase 02 shipped the table empty; Phase 06 fills
+        // it). Both accepted and rejected commands are audit-logged — the
+        // rejected branch carries Success=false in the synthesised result_json.
+        var body = BuildEnvelopeBytes(
+            MessageTypes.McCommandLog,
+            new McCommandLogPayload(
+                TimestampNs: 1_111_000_000_000L,
+                Command: "AuctionOpen",
+                ArgsJson: "{\"operator_host\":\"mc\",\"confirm\":true}",
+                Success: true,
+                Message: "transitioned to AuctionOpen",
+                NewStateJson: "{\"state\":\"STATE_AUCTION_OPEN\"}",
+                OperatorHostname: "mc"));
+
+        _consumer.DispatchMessage(body);
+
+        await DrainAndFlushAsync();
+
+        var row = _db.Query<(long ts_ns, string command, string args_json, string result_json, string operator_hostname)>(
+            "SELECT ts_ns, command, args_json, result_json, operator_hostname FROM mc_commands").Single();
+
+        Assert.Equal(1_111_000_000_000L, row.ts_ns);
+        Assert.Equal("AuctionOpen", row.command);
+        Assert.Contains("\"confirm\":true", row.args_json);
+        // result_json is a synthesised composite of (success, message, new_state)
+        // — the recorder builds it from the three audit fields per CONTEXT D-23.
+        Assert.Contains("\"success\":true", row.result_json);
+        Assert.Contains("transitioned to AuctionOpen", row.result_json);
+        Assert.Equal("mc", row.operator_hostname);
+    }
+
+    [Fact]
+    public async Task McCommandLog_RejectedCommand_PreservesSuccessFalseInResultJson()
+    {
+        // Audit-log invariant (SPEC Req 10): rejected commands are not dropped.
+        // Their envelope arrives with Success=false and the rejection detail
+        // in Message; the recorder writes a row carrying success:false in
+        // result_json so post-event replay tools see the rejection.
+        var body = BuildEnvelopeBytes(
+            MessageTypes.McCommandLog,
+            new McCommandLogPayload(
+                TimestampNs: 2_222_000_000_000L,
+                Command: "Gate",
+                ArgsJson: "{\"operator_host\":\"mc\",\"confirm\":false}",
+                Success: false,
+                Message: "confirm required for Gate",
+                NewStateJson: string.Empty,
+                OperatorHostname: "mc"));
+
+        _consumer.DispatchMessage(body);
+
+        await DrainAndFlushAsync();
+
+        var row = _db.Query<(string command, string result_json)>(
+            "SELECT command, result_json FROM mc_commands").Single();
+
+        Assert.Equal("Gate", row.command);
+        Assert.Contains("\"success\":false", row.result_json);
+        Assert.Contains("confirm required for Gate", row.result_json);
     }
 
     // ----- helpers -----

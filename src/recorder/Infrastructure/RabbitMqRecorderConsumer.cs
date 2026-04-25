@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Threading.Channels;
 using Bifrost.Contracts.Internal;
 using Bifrost.Contracts.Internal.Events;
+using Bifrost.Contracts.Internal.McLog;
 using Bifrost.Recorder.Session;
 using Bifrost.Recorder.Storage;
 using Bifrost.Time;
@@ -155,6 +156,25 @@ public sealed class RabbitMqRecorderConsumer : BackgroundService
             RecorderTopology.PublicEventsRoutingKey,
             cancellationToken: stoppingToken);
 
+        // Fourth exchange binding (Phase 06 D-23): MC command audit envelopes
+        // on bifrost.mc.v1. The orchestrator publishes one McCommandLog per
+        // processed McCommand on routing key mc.command.{cmd_snake}; the
+        // recorder's mc.command.# wildcard binding fans every accepted +
+        // rejected command into the existing recorder queue and lands them
+        // in the Phase 02-shipped (empty) mc_commands table — no schema
+        // change (D-12 zero-migrations posture). The exchange is declared
+        // here so the recorder can come up before the orchestrator on a
+        // cold-boot LAN stack; RabbitMQ ExchangeDeclare is idempotent
+        // when the orchestrator declares the same exchange.
+        await _consumeChannel.ExchangeDeclareAsync(
+            RecorderTopology.McAuditExchange, ExchangeType.Topic, durable: true,
+            cancellationToken: stoppingToken);
+        await _consumeChannel.QueueBindAsync(
+            RecorderTopology.RecorderEventsQueue,
+            RecorderTopology.McAuditExchange,
+            RecorderTopology.McCommandRoutingPattern,
+            cancellationToken: stoppingToken);
+
         var eventsConsumer = new AsyncEventingBasicConsumer(_consumeChannel);
         eventsConsumer.ReceivedAsync += async (_, ea) =>
         {
@@ -208,6 +228,8 @@ public sealed class RabbitMqRecorderConsumer : BackgroundService
     ///   New action verb introduced in the BIFROST orders table.]</item>
     /// <item>BookDelta → BookUpdateWrite (one per changed level per side)</item>
     /// <item>PublicTrade → TradeWrite</item>
+    /// <item>ImbalanceSettlement → ImbalanceSettlementWrite</item>
+    /// <item>McCommandLog → McCommandWrite (Phase 06 D-23 audit-log binding)</item>
     /// <item>other → EventWrite (news / alerts / round-state / shocks)</item>
     /// </list>
     /// </remarks>
@@ -275,6 +297,10 @@ public sealed class RabbitMqRecorderConsumer : BackgroundService
 
             case MessageTypes.ImbalanceSettlement:
                 DispatchImbalanceSettlement(envelope.Payload, receivedAtNs);
+                break;
+
+            case MessageTypes.McCommandLog:
+                DispatchMcCommandLog(envelope.Payload, receivedAtNs);
                 break;
 
             default:
@@ -458,6 +484,37 @@ public sealed class RabbitMqRecorderConsumer : BackgroundService
             ReceivedAtNs: receivedAtNs));
     }
 
+    /// <summary>
+    /// Dispatch a Phase 06 <see cref="McCommandLogPayload"/> envelope into
+    /// the <c>mc_commands</c> SQLite table. The payload's three result fields
+    /// (<c>Success</c>, <c>Message</c>, <c>NewStateJson</c>) are composed into
+    /// a single <c>result_json</c> string for the storage row — preserves
+    /// audit-log invariant that rejected commands carry <c>"success":false</c>
+    /// + the rejection detail in <c>message</c> (SPEC Req 10).
+    /// </summary>
+    private void DispatchMcCommandLog(JsonElement payload, long receivedAtNs)
+    {
+        var e = payload.Deserialize(RecorderJsonContext.Default.McCommandLogPayload);
+        if (e is null) return;
+
+        // Compose the three result fields into one TEXT cell. The shape mirrors
+        // the gateway/MC-console replay surface — a JSON object with the same
+        // three fields the orchestrator's Envelope<McCommandResult> publishes.
+        // Newtonsoft-flat formatting is fine here: the recorder is single-writer
+        // and the column is TEXT (D-12 schema unchanged).
+        var resultJson = JsonSerializer.Serialize(
+            new McCommandResultJson(e.Success, e.Message, e.NewStateJson),
+            RecorderJsonContext.Default.McCommandResultJson);
+
+        TryWrite(new McCommandWrite(
+            TsNs: e.TimestampNs,
+            Command: e.Command,
+            ArgsJson: e.ArgsJson,
+            ResultJson: resultJson,
+            OperatorHostname: e.OperatorHostname,
+            ReceivedAtNs: receivedAtNs));
+    }
+
     private void DispatchEvent(string kind, JsonElement payload, long receivedAtNs)
     {
         // Unknown or unmapped event — store the raw payload JSON and the
@@ -565,3 +622,15 @@ public sealed class RabbitMqRecorderConsumer : BackgroundService
             await _connection.CloseAsync(cancellationToken);
     }
 }
+
+/// <summary>
+/// Composite shape persisted into <c>mc_commands.result_json</c>: the three
+/// result fields lifted out of <see cref="McCommandLogPayload"/> on the
+/// recorder side. Kept in this file (rather than the contracts assembly)
+/// because it is a recorder-internal storage shape, not a wire DTO —
+/// downstream replay tools read it via the SQLite TEXT column directly.
+/// </summary>
+internal sealed record McCommandResultJson(
+    bool Success,
+    string Message,
+    string NewState);
