@@ -4,16 +4,30 @@
         <OutputType>Exe</OutputType>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+        <RootNamespace>Bifrost.Orchestrator.Tests</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="xunit.v3" />
         <PackageReference Include="xunit.runner.visualstudio" />
+        <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     </ItemGroup>
 
+    <!-- Contracts projects live at the repo root (contracts/dotnet/), not under
+         src/. This is the two-levels-up ProjectReference pattern inherited from
+         Phase 06-03 (see orchestrator csproj line 22-24): the repo's flat
+         contracts/ layout means csprojs under tests/ reach them via
+         ..\..\contracts\dotnet\Bifrost.Contracts.X. -->
     <ItemGroup>
         <ProjectReference Include="..\..\src\orchestrator\Bifrost.Orchestrator.csproj" />
+        <ProjectReference Include="..\..\contracts\dotnet\Bifrost.Contracts.Mc\Bifrost.Contracts.Mc.csproj" />
+        <ProjectReference Include="..\..\contracts\dotnet\Bifrost.Contracts.Round\Bifrost.Contracts.Round.csproj" />
+        <ProjectReference Include="..\..\contracts\dotnet\Bifrost.Contracts.Events\Bifrost.Contracts.Events.csproj" />
+        <ProjectReference Include="..\..\src\contracts-internal\Bifrost.Contracts.Internal\Bifrost.Contracts.Internal.csproj" />
+        <ProjectReference Include="..\..\src\exchange\Exchange.Application\Bifrost.Exchange.Application.csproj" />
+        <ProjectReference Include="..\..\src\common\Bifrost.Time\Bifrost.Time.csproj" />
     </ItemGroup>
 
 </Project>
