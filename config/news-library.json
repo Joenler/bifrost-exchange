@@ -1,0 +1,11 @@
+{
+  "thor-strike": {
+    "text": "Thor's lightning has tripped a power station in Midgard — 300 MW production lost.",
+    "severity": "urgent",
+    "shock": {
+      "mw": -300,
+      "label": "midgard-station-trip",
+      "persistence": "round"
+    }
+  }
+}
