@@ -43,7 +43,10 @@ public sealed class ForecastDispatcher : BackgroundService
         PropertyNameCaseInsensitive = true,
     };
 
-    private readonly IConnection _connection;
+    // Nullable for test construction: unit tests drive DispatchOneTickAsync directly via the
+    // internal seam and never enter ExecuteAsync (where _connection IS required). Production
+    // DI always provides a non-null IConnection through the host.
+    private readonly IConnection? _connection;
     private readonly TeamRegistry _registry;
     private readonly TimeProvider _timeProvider;
     private readonly IClock _clock;
@@ -73,7 +76,7 @@ public sealed class ForecastDispatcher : BackgroundService
         IConfiguration configuration,
         ILogger<ForecastDispatcher> logger)
     {
-        _connection = connection ?? throw new ArgumentNullException(nameof(connection));
+        _connection = connection;   // null permitted for unit tests; ExecuteAsync rejects null
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -103,6 +106,8 @@ public sealed class ForecastDispatcher : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (_connection is null)
+            throw new InvalidOperationException("ForecastDispatcher: IConnection is required when running as a HostedService (production DI).");
         // Pitfall 6: dedicated channel for the forecast subscription.
         _forecastChannel = await _connection.CreateChannelAsync(cancellationToken: stoppingToken);
         await _forecastChannel.ExchangeDeclareAsync(

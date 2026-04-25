@@ -1,6 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
     <ItemGroup>
+        <!-- Plan 07-07: ForecastDispatcher exposes internal test seams (DispatchOneTickAsync,
+             SetJitterRngForTest, SetLatestForecastForTest) that ForecastDispatcherTests
+             drives via TestHarness construction. -->
+        <InternalsVisibleTo Include="Bifrost.Gateway.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="Grpc.AspNetCore" />
         <PackageReference Include="Polly.Core" />
         <PackageReference Include="prometheus-net.AspNetCore" />
