@@ -50,7 +50,7 @@ string-encoded form for JavaScript-precision safety.
 | `bifrost.strategy.v1.MarketEvent.Trade` | `Bifrost.Contracts.Internal.Events.PublicTradeEvent` | `enum Side aggressor_side` ↔ `string AggressorSide`; `long TickSize` carried through |
 | `bifrost.strategy.v1.MarketEvent.ForecastUpdate` | `Bifrost.Contracts.Internal.Events.ForecastUpdateEvent` | DTO carries `ForecastPriceTicks`, `HorizonNs`, `TimestampNs` (envelope-level on the proto side); no `ClientId` — public fairness invariant |
 | `bifrost.strategy.v1.MarketEvent.ImbalancePrint` | `Bifrost.Contracts.Internal.Events.ImbalancePrintEvent` | Added v1.1.0 per D-12. 4 messages per Gate (one per quarter); `RoundNumber`, `InstrumentIdDto`, `QuarterIndex`, `PImbTicks`, `ATotalTicks`, `APhysicalTicks`, `Regime` enum ↔ string, `TimestampNs` inline on the proto |
-| `bifrost.strategy.v1.MarketEvent.RoundState` | **BIFROST-specific — Phase 06** | DTO lands with the Round Orchestrator (wraps `bifrost.round.v1.RoundState`) |
+| `bifrost.strategy.v1.MarketEvent.RoundState` | Shipped in Phase 06 — `Bifrost.Contracts.Internal.Events.RoundStateChangedPayload` | DTO is the delta-projection of orchestrator state (wraps `bifrost.round.v1.RoundState`); 5 fields round-trip bit-equivalently per `RoundStateTranslationTests`, the remaining 7 orchestrator-internal flags (Paused/Blocked/IsReconciliation/IterationSeedRotationCount/AbortReason/...) are reconstructed on the consumer side from envelope headers + orchestrator state |
 | `bifrost.strategy.v1.MarketEvent.Scorecard` | **BIFROST-specific — Phase 10** | DTO lands with the Scoring loop |
 | `bifrost.strategy.v1.MarketEvent.PositionSnapshot` | **BIFROST-specific — Phase 07** | DTO lands with the Gateway (position-authority rule GW-06) |
 | `bifrost.strategy.v1.MarketEvent.RegisterAck` | — (gateway-only) | registration handshake; no RabbitMQ DTO |
@@ -61,9 +61,9 @@ string-encoded form for JavaScript-precision safety.
 |---|---|---|
 | `bifrost.events.v1.Event.RegimeChange` | **BIFROST-specific — Phase 03** | DTO lands with the Quoter; `enum Regime` ↔ string |
 | `bifrost.events.v1.Event.ForecastRevision` | `Bifrost.Contracts.Internal.Events.ForecastRevisionEvent` | `NewForecastPriceTicks`, `Reason`, `TimestampNs` (envelope-level); public, no team identity |
-| `bifrost.events.v1.Event.News` | **BIFROST-specific — Phase 06b** | DTO lands with the MC Console |
-| `bifrost.events.v1.Event.MarketAlert` | **BIFROST-specific — Phase 06b** | `enum Severity` ↔ string; DTO lands with the MC Console |
-| `bifrost.events.v1.Event.ConfigChange` | **BIFROST-specific — Phase 06** | DTO lands with the Orchestrator |
+| `bifrost.events.v1.Event.News` | Shipped in Phase 06 — `Bifrost.Contracts.Internal.Events.NewsPayload` (producer: orchestrator; client: bifrost-mc via gRPC in Phase 06b) | `LibraryKey=""` marks free-text NewsPublishCmd; non-empty marks canned NewsFireCmd hits resolved against `config/news-library.json` |
+| `bifrost.events.v1.Event.MarketAlert` | Shipped in Phase 06 — `Bifrost.Contracts.Internal.Events.MarketAlertPayload` (producer: orchestrator; client: bifrost-mc via gRPC in Phase 06b) | `enum Severity` ↔ string; field exists on the DTO for future non-urgent expansion even though `AlertUrgentCmd` only emits urgent today |
+| `bifrost.events.v1.Event.ConfigChange` | Shipped in Phase 06 — `Bifrost.Contracts.Internal.Events.ConfigChangePayload` | Free-form `Path`/`OldValue`/`NewValue` strings — orchestrator publishes on `ConfigSetCmd` receipt; downstream services re-read live-tune state in their respective subsystems |
 | `bifrost.events.v1.Event.PhysicalShock` | `Bifrost.Contracts.Internal.Events.PhysicalShockEvent` | `int32 Mw`, `string Label`, `ShockPersistence` enum ↔ string, `int QuarterIndex` (optional `int32 quarter_index` landed in v1.1.0, required on the DTO — orchestrator enforces HasQuarterIndex at the boundary), `TimestampNs` envelope-level |
 
 ## Shared types (market.proto + round.proto + auction.proto)
@@ -99,6 +99,7 @@ type has a RabbitMQ DTO".
 | `bifrost.mc.v1.TeamKickCmd` / `TeamResetCmd` | — (internal gRPC only) | gateway-scope side-effect; no message-bus mirror |
 | `bifrost.mc.v1.ConfigSetCmd` | — (internal gRPC only) | emits `Event.ConfigChange` downstream via orchestrator |
 | `bifrost.mc.v1.LeaderboardRevealCmd` / `EventEndCmd` | — (internal gRPC only) | terminal MC signals |
+| `bifrost.mc.v1/mc.command.#` (internal audit) | `Bifrost.Contracts.Internal.McLog.McCommandLogPayload` | Shipped in Phase 06 — orchestrator publishes every accepted/rejected command on routing key `mc.command.{cmd_snake}`; recorder binds `mc.command.#` and writes into the `mc_commands` table (Phase 02 zero-migrations table). Rejected commands carry `Success=false` + rejection detail in `Message` and `NewStateJson=""` — they are not dropped from the audit log. |
 
 ## Imbalance-simulator private events (internal-only; no gRPC counterpart)
 
