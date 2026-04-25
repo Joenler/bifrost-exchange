@@ -176,6 +176,13 @@ public sealed class OrchestratorServiceImpl : OrchestratorService.OrchestratorSe
         long lastSeen = request.LastSeenTransitionNs;
         IReadOnlyList<RoundStateChangedPayload> ringSnapshot = _ring.SnapshotInOrder();
 
+        // Bail-out helper: every WriteAsync site checks cancellation BEFORE
+        // sending so we don't push into a torn-down stream. The
+        // CancellationToken-aware WriteAsync overload on IServerStreamWriter
+        // is an optional extension that some implementations (notably the
+        // in-process test harness) decline with NotSupportedException, so we
+        // call the no-token override and gate on context.CancellationToken
+        // explicitly.
         if (lastSeen == 0)
         {
             // Fresh connect — stream the current snapshot first if the ring
@@ -184,7 +191,8 @@ public sealed class OrchestratorServiceImpl : OrchestratorService.OrchestratorSe
             RoundStateChangedPayload? current = _ring.Current();
             if (current is not null)
             {
-                await responseStream.WriteAsync(MapToProto(current), context.CancellationToken);
+                context.CancellationToken.ThrowIfCancellationRequested();
+                await responseStream.WriteAsync(MapToProto(current));
             }
         }
         else
@@ -221,7 +229,8 @@ public sealed class OrchestratorServiceImpl : OrchestratorService.OrchestratorSe
                 RoundStateChangedPayload? current = _ring.Current();
                 if (current is not null)
                 {
-                    await responseStream.WriteAsync(MapToProto(current), context.CancellationToken);
+                    context.CancellationToken.ThrowIfCancellationRequested();
+                    await responseStream.WriteAsync(MapToProto(current));
                 }
             }
             else if (afterIdx >= 0)
@@ -229,9 +238,8 @@ public sealed class OrchestratorServiceImpl : OrchestratorService.OrchestratorSe
                 // Case A — replay the ring tail.
                 for (int i = afterIdx; i < ringSnapshot.Count; i++)
                 {
-                    await responseStream.WriteAsync(
-                        MapToProto(ringSnapshot[i]),
-                        context.CancellationToken);
+                    context.CancellationToken.ThrowIfCancellationRequested();
+                    await responseStream.WriteAsync(MapToProto(ringSnapshot[i]));
                 }
             }
             else
@@ -242,7 +250,8 @@ public sealed class OrchestratorServiceImpl : OrchestratorService.OrchestratorSe
                 RoundStateChangedPayload? current = _ring.Current();
                 if (current is not null)
                 {
-                    await responseStream.WriteAsync(MapToProto(current), context.CancellationToken);
+                    context.CancellationToken.ThrowIfCancellationRequested();
+                    await responseStream.WriteAsync(MapToProto(current));
                 }
             }
         }
@@ -256,7 +265,8 @@ public sealed class OrchestratorServiceImpl : OrchestratorService.OrchestratorSe
             await foreach (RoundStateChangedPayload snapshot in
                 liveReader.ReadAllAsync(context.CancellationToken))
             {
-                await responseStream.WriteAsync(MapToProto(snapshot), context.CancellationToken);
+                context.CancellationToken.ThrowIfCancellationRequested();
+                await responseStream.WriteAsync(MapToProto(snapshot));
             }
         }
         catch (OperationCanceledException)
