@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
@@ -356,3 +357,137 @@ jobs:
           load: false
           cache-from: type=gha,scope=${{ matrix.service }}-arm64
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}-arm64
+
+  orchestrator-tests:
+    name: orchestrator-tests
+    # Quick orchestrator suite: excludes the Long-trait FakeClock 30-min hold
+    # theory rows (NoAutoAdvanceTests) so PR feedback stays fast. The Long
+    # suite still runs on demand via `workflow_dispatch` below; the existing
+    # `build` matrix slot named `orchestrator` runs the FULL suite (including
+    # the 6 Long-trait rows — ~3s extra under FakeClock virtual time) as a
+    # defense-in-depth.
+    #
+    # Filter syntax note: the conceptual filter is `Trait!=Long` (exclude the
+    # Long-trait theory rows from the default run). The xunit.v3 vstest filter
+    # dialect for `[Trait("Long","true")]` is `Long=true` (the trait NAME
+    # equals the trait VALUE; the `Trait=` prefix is implicit). `Long!=true`
+    # excludes the long suite from the default run. Filter syntax verified in
+    # Plan 06-13's deviation #3.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build orchestrator + tests
+        run: |
+          dotnet build src/orchestrator/Bifrost.Orchestrator.csproj -c Release --nologo
+          dotnet build tests/Bifrost.Orchestrator.Tests/Bifrost.Orchestrator.Tests.csproj -c Release --nologo
+      - name: orchestrator-tests
+        run: |
+          dotnet test tests/Bifrost.Orchestrator.Tests/Bifrost.Orchestrator.Tests.csproj \
+            -c Release --nologo --no-build \
+            --filter "Long!=true"
+
+  ci-no-auto-advance:
+    name: ci-no-auto-advance
+    # Falsifiable regression guard for SPEC Req 13 ("no auto-advance"). Greps
+    # src/orchestrator/**/*.cs + appsettings.json + tests/ for timer patterns
+    # outside a 3-file basename whitelist (IterationSeedTimer.cs +
+    # HeartbeatToleranceMonitor.cs + StartupLogger.cs), the AutoAdvance symbol,
+    # and the "auto-advance" string literal. Mirrors the ci-scrub-gsd job
+    # template above. Tamper-tested in Plan 06-13 (a temporary Task.Delay(60_000)
+    # in OrchestratorActor.cs trips guard (b)).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Verify ripgrep
+        run: rg --version
+      - name: Run no-auto-advance-guard.sh
+        run: bash tools/no-auto-advance-guard.sh
+
+  orchestrator-compose-smoke:
+    name: orchestrator-compose-smoke
+    # End-to-end live-process smoke: build the orchestrator image, bring it up
+    # alongside its RabbitMQ dependency under docker compose, assert the
+    # container reaches the `healthy` state, then ping
+    # `bifrost.mc.v1.OrchestratorService/Execute` with an AuctionOpen command
+    # via grpcurl. Proves the gRPC server actually serves traffic on port 5006
+    # against a real (not in-process) Kestrel + Polly RabbitMQ-pipeline boot.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build orchestrator image
+        run: docker compose build orchestrator
+      - name: Pull third-party images (rabbitmq) outside the boot budget
+        run: docker compose pull --quiet rabbitmq
+      - name: Compose up orchestrator + rabbitmq (60s timeout, --wait gates on healthy)
+        run: |
+          if ! timeout 60 docker compose up --wait --wait-timeout 30 -d orchestrator rabbitmq; then
+            echo "::error::orchestrator did not reach healthy within 60s"
+            docker compose ps
+            docker compose logs --tail=120 orchestrator rabbitmq
+            docker compose down --timeout 10 || true
+            exit 1
+          fi
+      - name: Assert orchestrator container is healthy
+        run: |
+          docker compose ps --format json | tee /tmp/compose-ps.json
+          if ! grep -E '"Service":"orchestrator".*"Health":"healthy"' /tmp/compose-ps.json; then
+            echo "::error::orchestrator container is not healthy"
+            docker compose logs --tail=120 orchestrator
+            docker compose down --timeout 10 || true
+            exit 1
+          fi
+      - name: Install grpcurl
+        run: |
+          curl -sSL https://github.com/fullstorydev/grpcurl/releases/download/v1.9.1/grpcurl_1.9.1_linux_x86_64.tar.gz \
+            | sudo tar -xz -C /usr/local/bin grpcurl
+          grpcurl --version
+      - name: Ping bifrost.mc.v1.OrchestratorService/Execute (AuctionOpen)
+        run: |
+          # Drive the orchestrator from its boot state (IterationOpen) into
+          # AuctionOpen via a confirmed AuctionOpenCmd. The expected response
+          # is McCommandResult { success: true, new_state: STATE_AUCTION_OPEN }.
+          # A failure response (success: false) or transport-level error fails
+          # the smoke. The proto import path is the contracts/ root; mc.proto
+          # imports round.proto + events.proto from the same root.
+          set -euo pipefail
+          response=$(grpcurl -plaintext \
+            -import-path contracts \
+            -proto contracts/mc.proto \
+            -d '{"operator_host":"ci","confirm":true,"auction_open":{"round_number":1}}' \
+            localhost:5006 \
+            bifrost.mc.v1.OrchestratorService/Execute)
+          echo "$response"
+          if ! echo "$response" | grep -q '"success": *true'; then
+            echo "::error::Execute(AuctionOpen) did not return success=true"
+            docker compose logs --tail=120 orchestrator
+            exit 1
+          fi
+      - name: Compose down
+        if: always()
+        run: docker compose down --timeout 10 || true
+
+  orchestrator-long-suite:
+    name: orchestrator-long-suite
+    # Manual/dispatch-only run of the Long-trait NoAutoAdvanceTests theory
+    # (6 rows × 30-min FakeClock hold per state). VALIDATION.md ceiling is
+    # 35 minutes real wall-clock for the original (real-time) formulation;
+    # the FakeClock-driven implementation runs in ~5 seconds. Kept as an
+    # explicit dispatch slot so the SPEC's long-suite-availability requirement
+    # is satisfied without adding it to every PR run.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Run orchestrator long suite (filter Long=true)
+        run: |
+          dotnet test tests/Bifrost.Orchestrator.Tests/Bifrost.Orchestrator.Tests.csproj \
+            -c Release --nologo \
+            --filter "Long=true"
