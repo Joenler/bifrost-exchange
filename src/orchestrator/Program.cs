@@ -3,6 +3,7 @@ using Bifrost.Contracts.Internal;
 using Bifrost.Orchestrator;
 using Bifrost.Orchestrator.Actor;
 using Bifrost.Orchestrator.Grpc;
+using Bifrost.Orchestrator.Heartbeat;
 using Bifrost.Orchestrator.News;
 using Bifrost.Orchestrator.Rabbit;
 using Bifrost.Orchestrator.State;
@@ -95,6 +96,33 @@ builder.Services.AddHostedService<OrchestratorActor>();
 // because iteration seeds are public clock-rolls visible on the big screen;
 // the actor's tick handler additionally gates on State==IterationOpen.
 builder.Services.AddHostedService<IterationSeedTimer>();
+
+// Plan 06-10: gateway-heartbeat seam.
+//
+// Default registration is AlwaysHealthyGatewayHeartbeatSource — Phase 06's
+// compose smoke + every test that doesn't drive the heartbeat path runs with
+// this default. Phase 07 flips Orchestrator:Heartbeat:Enabled=true in its
+// compose overlay, which swaps in the RabbitMQ-backed source AND boots the
+// HeartbeatToleranceMonitor BackgroundService.
+//
+// The monitor polls IsHealthy every wall-second and enqueues a
+// HeartbeatChangeMessage onto the actor channel on each transition. The
+// actor's HandleHeartbeatChangeAsync sets Blocked+Paused on healthy=false;
+// healthy=true only logs (SPEC Req 11 — no auto-clear; only MC Resume
+// clears Blocked).
+bool heartbeatEnabled = builder.Configuration.GetValue<bool>(
+    "Orchestrator:Heartbeat:Enabled",
+    defaultValue: false);
+
+if (heartbeatEnabled)
+{
+    builder.Services.AddSingleton<IGatewayHeartbeatSource, RabbitMqGatewayHeartbeatSource>();
+    builder.Services.AddHostedService<HeartbeatToleranceMonitor>();
+}
+else
+{
+    builder.Services.AddSingleton<IGatewayHeartbeatSource, AlwaysHealthyGatewayHeartbeatSource>();
+}
 
 // Register gRPC infrastructure + the orchestrator service implementation.
 // OrchestratorServiceImpl bridges gRPC handler calls onto the actor's
