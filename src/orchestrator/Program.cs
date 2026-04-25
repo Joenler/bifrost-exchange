@@ -89,16 +89,22 @@ builder.Services.AddSingleton<ChannelReader<IOrchestratorMessage>>(sp =>
 
 builder.Services.AddHostedService<OrchestratorActor>();
 
-// Register gRPC infrastructure. Service implementations are mapped by a
-// follow-up plan; until then the server is bound but has no services mapped -
-// Execute() RPCs return grpc-status UNIMPLEMENTED, which is exactly the
-// expected behaviour for the plumbing pass.
+// Register gRPC infrastructure + the orchestrator service implementation.
+// OrchestratorServiceImpl bridges gRPC handler calls onto the actor's
+// channel: Execute writes McCommandMessage and awaits the TCS;
+// WatchRoundState subscribes to the ring buffer and tails snapshots.
 builder.Services.AddGrpc();
+builder.Services.AddSingleton<Bifrost.Orchestrator.Grpc.OrchestratorServiceImpl>();
 
 // Sentinel-file writer for the docker-compose healthcheck. Preserved verbatim
 // from the Phase 00 skeleton so BOOT-03 stays green.
 builder.Services.AddHostedService<StartupLogger>();
 
 WebApplication app = builder.Build();
+
+// Route gRPC traffic for bifrost.mc.v1.OrchestratorService onto the singleton
+// implementation. Both Execute (unary) and WatchRoundState (server-streaming)
+// are bound by Grpc.AspNetCore via the generated OrchestratorServiceBase.
+app.MapGrpcService<Bifrost.Orchestrator.Grpc.OrchestratorServiceImpl>();
 
 await app.RunAsync();
