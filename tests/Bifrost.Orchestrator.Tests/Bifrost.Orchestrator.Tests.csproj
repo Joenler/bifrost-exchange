@@ -13,6 +13,7 @@
         <PackageReference Include="xunit.runner.visualstudio" />
         <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+        <PackageReference Include="Microsoft.Data.Sqlite" />
     </ItemGroup>
 
     <!-- Contracts projects live at the repo root (contracts/dotnet/), not under
@@ -22,6 +23,7 @@
          ..\..\contracts\dotnet\Bifrost.Contracts.X. -->
     <ItemGroup>
         <ProjectReference Include="..\..\src\orchestrator\Bifrost.Orchestrator.csproj" />
+        <ProjectReference Include="..\..\src\recorder\Bifrost.Recorder.csproj" />
         <ProjectReference Include="..\..\contracts\dotnet\Bifrost.Contracts.Mc\Bifrost.Contracts.Mc.csproj" />
         <ProjectReference Include="..\..\contracts\dotnet\Bifrost.Contracts.Round\Bifrost.Contracts.Round.csproj" />
         <ProjectReference Include="..\..\contracts\dotnet\Bifrost.Contracts.Events\Bifrost.Contracts.Events.csproj" />
