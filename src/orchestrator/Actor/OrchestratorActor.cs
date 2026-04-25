@@ -290,16 +290,46 @@ public sealed class OrchestratorActor : BackgroundService
         }
     }
 
-    private Task HandleIterationSeedTickAsync(CancellationToken ct)
+    private async Task HandleIterationSeedTickAsync(CancellationToken ct)
     {
-        // A follow-up plan fills in: increment IterationSeedRotationCount, call
-        // _seedAllocator.CurrentIterationSeed(nextCount), persist, publish.
-        // This plan ships the drain-arm stub so the constructor + dispatch
-        // signature are stable across plans.
-        _logger.LogDebug(
-            "IterationSeedTickMessage received - follow-up plan implements rotation");
-        _ = ct;
-        return Task.CompletedTask;
+        // D-22: the IterationSeedTimer runs under Paused=true (iteration seeds
+        // are public clock-rolls). The rotation itself only fires while we are
+        // in IterationOpen; ticks outside that window are silent no-ops so the
+        // count + seed never advance during a scored round.
+        if (_state.State != BifrostState.IterationOpen)
+        {
+            _logger.LogDebug(
+                "IterationSeedTick received outside IterationOpen (state={State}) - skipping",
+                _state.State);
+            return;
+        }
+
+        int nextCount = _state.IterationSeedRotationCount + 1;
+        long newIterationSeed = _seedAllocator.CurrentIterationSeed(nextCount);
+
+        OrchestratorState next = _state with
+        {
+            IterationSeedRotationCount = nextCount,
+            ScenarioSeedInternal = newIterationSeed,
+            LastTransitionNs = NowNs(),
+        };
+
+        try
+        {
+            await _store.SaveAsync(next, ct);
+            _state = next;
+            await PublishStateSnapshot(isReconciliation: false, ct);
+        }
+        catch (Exception ex)
+        {
+            // Persistence failure on a seed rotation is non-fatal: the in-
+            // memory state is unchanged (we never assigned _state) and the
+            // next tick will retry. Log and continue.
+            _logger.LogError(
+                ex,
+                "Persistence failed during iteration-seed tick (count={Count}) - skipping",
+                nextCount);
+        }
     }
 
     // A follow-up plan fills in NewsFire / NewsPublish / AlertUrgent /

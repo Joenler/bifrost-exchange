@@ -89,6 +89,13 @@ builder.Services.AddSingleton<ChannelReader<IOrchestratorMessage>>(sp =>
 
 builder.Services.AddHostedService<OrchestratorActor>();
 
+// IClock-polling iteration-seed rotation timer. Enqueues
+// IterationSeedTickMessage onto the actor channel every
+// IterationSeedRotationSeconds (default 300). Runs even under Paused=true
+// because iteration seeds are public clock-rolls visible on the big screen;
+// the actor's tick handler additionally gates on State==IterationOpen.
+builder.Services.AddHostedService<IterationSeedTimer>();
+
 // Register gRPC infrastructure + the orchestrator service implementation.
 // OrchestratorServiceImpl bridges gRPC handler calls onto the actor's
 // channel: Execute writes McCommandMessage and awaits the TCS;
