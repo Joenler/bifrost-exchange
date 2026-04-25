@@ -2,6 +2,7 @@ using System.Text.Json;
 using Bifrost.Contracts.Internal;
 using Bifrost.Contracts.Internal.Events;
 using Bifrost.Exchange.Infrastructure.RabbitMq;
+using Bifrost.Gateway.Metrics;
 using Bifrost.Gateway.State;
 using Bifrost.Time;
 using Microsoft.Extensions.Configuration;
@@ -321,8 +322,10 @@ public sealed class ForecastDispatcher : BackgroundService
                     }
                 }
 
-                // Plan 08 will land GatewayMetrics.ForecastsDispatched.Inc(team.TeamName) here.
-                // For now the metric is a no-op TODO.
+                // SPEC req 12 metric. Increment AFTER the ring-Append + outbound write so
+                // the counter only grows when the team actually saw the envelope (or had
+                // it durably retained for replay if the writer was detached).
+                GatewayMetrics.ForecastsDispatched.WithLabels(team.TeamName).Inc();
             }
             catch (Exception ex)
             {

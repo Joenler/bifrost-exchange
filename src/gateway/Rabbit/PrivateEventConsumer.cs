@@ -4,6 +4,7 @@ using Bifrost.Contracts.Internal.Events;
 using Bifrost.Contracts.Internal.Shared;
 using Bifrost.Exchange.Infrastructure.RabbitMq;
 using Bifrost.Gateway.Guards;
+using Bifrost.Gateway.Metrics;
 using Bifrost.Gateway.Position;
 using Bifrost.Gateway.State;
 using Bifrost.Gateway.Translation;
@@ -239,6 +240,21 @@ public sealed class PrivateEventConsumer : BackgroundService
                 await writer.WriteAsync(snapshot, ct);
             }
         }
+
+        // SPEC req 12 metrics. prometheus-net Counter/Gauge are thread-safe; place
+        // outside the lock so they never extend critical-section duration.
+        if (envelope.MessageType == MessageTypes.OrderExecuted)
+        {
+            GatewayMetrics.Fills.WithLabels(teamState.TeamName).Inc();
+        }
+        // RingBufferOccupancy is updated on every Append site; PrivateEventConsumer
+        // is the dominant ring-Append path (one append per private event + a second
+        // for each Fill's PositionSnapshot). Reading head/tail outside the lock is
+        // safe enough for a gauge — slight skew at high contention, never zero or
+        // negative.
+        GatewayMetrics.RingBufferOccupancy
+            .WithLabels(teamState.TeamName)
+            .Set(teamState.Ring.Head - teamState.Ring.Tail);
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)

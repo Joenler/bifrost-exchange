@@ -3,6 +3,7 @@ using System.Threading.Channels;
 using Bifrost.Contracts.Internal;
 using Bifrost.Gateway.Guards;
 using Bifrost.Gateway.MassCancel;
+using Bifrost.Gateway.Metrics;
 using Bifrost.Gateway.Rabbit;
 using Bifrost.Gateway.State;
 using Bifrost.Gateway.Translation;
@@ -89,6 +90,9 @@ public sealed class StrategyGatewayService : StrategyProto.StrategyGatewayServic
         if (first.CommandCase != StrategyProto.StrategyCommand.CommandOneofCase.Register)
         {
             _log.LogWarning("First frame {Case} is not Register; closing with no reply (SPEC req 1)", first.CommandCase);
+            // SPEC req 12: pre-Register structural rejects (bad first frame) have no
+            // resolvable team_name — counted on the unlabelled StructuralRejects family.
+            GatewayMetrics.StructuralRejects.Inc();
             return;
         }
 
@@ -100,6 +104,7 @@ public sealed class StrategyGatewayService : StrategyProto.StrategyGatewayServic
             // Reserved-id rejection or empty/whitespace team_name. Per SPEC req 9:
             // emit OrderReject(STRUCTURAL) and close — clearer than reregister_required
             // for a pre-registration rejection.
+            GatewayMetrics.StructuralRejects.Inc();
             await responseStream.WriteAsync(
                 OutboundTranslator.BuildOrderReject(
                     StrategyProto.RejectReason.Structural,
@@ -109,6 +114,8 @@ public sealed class StrategyGatewayService : StrategyProto.StrategyGatewayServic
         }
 
         var teamState = registerResult.TeamState;
+        // GW-10: every successful Register (initial + reconnect) increments reconnects.
+        GatewayMetrics.Reconnects.WithLabels(teamState.TeamName).Inc();
         using var streamCtx = new StreamContext(teamState, _outboundCapacity, ct);
 
         // 2. Attach outbound writer to TeamState so RabbitMQ consumers (Plan 06) and
@@ -215,10 +222,11 @@ public sealed class StrategyGatewayService : StrategyProto.StrategyGatewayServic
                     var cmd = requestStream.Current;
                     var sw = Stopwatch.StartNew();
                     await HandleCommandAsync(teamState, cmd, streamCtx.Outbound.Writer, ct);
-                    // Plan 08 metrics observation:
-                    // GatewayMetrics.StreamLatency.WithLabels(teamState.TeamName)
-                    //                             .Observe(sw.Elapsed.TotalSeconds);
-                    _ = sw;
+                    // SPEC req 12: stream latency from receive to ack-or-reject. Default
+                    // histogram buckets (D-13) bracket the 50ms p99 SLO at .025/.05.
+                    GatewayMetrics.StreamLatency
+                        .WithLabels(teamState.TeamName)
+                        .Observe(sw.Elapsed.TotalSeconds);
                 }
             }
             catch (OperationCanceledException) { /* clean disconnect */ }
@@ -268,6 +276,11 @@ public sealed class StrategyGatewayService : StrategyProto.StrategyGatewayServic
         }
         if (!guardResult.Accepted)
         {
+            // SPEC req 12: label the rejection by guard so dashboards can show
+            // "which guard is firing for which team" without further correlation.
+            GatewayMetrics.GuardRejects
+                .WithLabels(state.TeamName, GuardLabelFor(guardResult.Reason))
+                .Inc();
             await outbound.WriteAsync(
                 OutboundTranslator.BuildOrderReject(guardResult.Reason, guardResult.Detail),
                 ct);
@@ -283,23 +296,44 @@ public sealed class StrategyGatewayService : StrategyProto.StrategyGatewayServic
             {
                 var dto = InboundTranslator.ToInternalSubmit(cmd.OrderSubmit, state.ClientId);
                 await _cmdPublisher.PublishSubmitOrderAsync(state.ClientId, dto, correlationId, ct);
+                GatewayMetrics.OrdersSubmitted.WithLabels(state.TeamName).Inc();
                 break;
             }
             case StrategyProto.StrategyCommand.CommandOneofCase.OrderCancel:
             {
                 var dto = InboundTranslator.ToInternalCancel(cmd.OrderCancel, state.ClientId);
                 await _cmdPublisher.PublishCancelOrderAsync(state.ClientId, dto, correlationId, ct);
+                GatewayMetrics.OrdersCancelled.WithLabels(state.TeamName).Inc();
                 break;
             }
             case StrategyProto.StrategyCommand.CommandOneofCase.OrderReplace:
             {
                 var dto = InboundTranslator.ToInternalReplace(cmd.OrderReplace, state.ClientId);
                 await _cmdPublisher.PublishReplaceOrderAsync(state.ClientId, dto, correlationId, ct);
+                GatewayMetrics.OrdersReplaced.WithLabels(state.TeamName).Inc();
                 break;
             }
             // BidMatrixSubmit and mid-stream Register were rejected by StructuralGuard.
         }
     }
+
+    /// <summary>
+    /// Maps the proto <see cref="StrategyProto.RejectReason"/> to the Prometheus
+    /// <c>guard</c> label vocabulary listed in SPEC req 12. Unknown / unspecified
+    /// reasons collapse into "other" so the cardinality stays bounded by the
+    /// proto enum surface area.
+    /// </summary>
+    private static string GuardLabelFor(StrategyProto.RejectReason reason) => reason switch
+    {
+        StrategyProto.RejectReason.Structural => "structural",
+        StrategyProto.RejectReason.ExchangeClosed => "state_gate",
+        StrategyProto.RejectReason.RateLimited => "rate_limited",
+        StrategyProto.RejectReason.MaxOpenOrders => "max_open_orders",
+        StrategyProto.RejectReason.MaxNotional => "max_notional",
+        StrategyProto.RejectReason.MaxPosition => "max_position",
+        StrategyProto.RejectReason.SelfTrade => "self_trade",
+        _ => "other",
+    };
 
     /// <summary>
     /// Maps the domain <c>Bifrost.Exchange.Application.RoundState.RoundState</c> enum
