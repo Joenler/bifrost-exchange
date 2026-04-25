@@ -349,7 +349,10 @@ public sealed class ForecastDispatcher : BackgroundService
             {
                 _logger.LogWarning(ex, "ForecastDispatcher channel close failed");
             }
-            _forecastChannel.Dispose();
+            // Dispose can NRE on RabbitMQ.Client 7.x channels whose underlying
+            // session was already torn down by the connection. Swallow.
+            try { _forecastChannel.Dispose(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "ForecastDispatcher channel dispose failed"); }
             _forecastChannel = null;
         }
         await base.StopAsync(cancellationToken);

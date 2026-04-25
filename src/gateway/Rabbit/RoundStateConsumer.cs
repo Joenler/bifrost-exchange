@@ -161,7 +161,12 @@ public sealed class RoundStateConsumer : BackgroundService
             {
                 _log.LogWarning(ex, "RoundStateConsumer channel close failed");
             }
-            _channel.Dispose();
+            // Dispose can NRE on RabbitMQ.Client 7.x channels whose underlying
+            // session was already torn down by the connection. We've logged the
+            // close failure above; swallow the dispose failure too — the
+            // hosted-service shutdown contract is "best effort".
+            try { _channel.Dispose(); }
+            catch (Exception ex) { _log.LogWarning(ex, "RoundStateConsumer channel dispose failed"); }
             _channel = null;
         }
         await base.StopAsync(cancellationToken);
