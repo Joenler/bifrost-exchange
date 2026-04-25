@@ -434,8 +434,12 @@ jobs:
           fi
       - name: Assert orchestrator container is healthy
         run: |
+          # docker compose ps --format json emits NDJSON (one object per line) and
+          # does not guarantee field order, so the previous order-sensitive grep
+          # (Service before Health) failed even when Health was "healthy". Parse
+          # via jq instead — robust to any field ordering compose chooses.
           docker compose ps --format json | tee /tmp/compose-ps.json
-          if ! grep -E '"Service":"orchestrator".*"Health":"healthy"' /tmp/compose-ps.json; then
+          if ! jq -se 'any(.Service == "orchestrator" and .Health == "healthy")' /tmp/compose-ps.json > /dev/null; then
             echo "::error::orchestrator container is not healthy"
             docker compose logs --tail=120 orchestrator
             docker compose down --timeout 10 || true
