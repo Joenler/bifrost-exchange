@@ -32,4 +32,8 @@
         </None>
     </ItemGroup>
 
+    <ItemGroup>
+        <InternalsVisibleTo Include="Bifrost.Orchestrator.Tests" />
+    </ItemGroup>
+
 </Project>
