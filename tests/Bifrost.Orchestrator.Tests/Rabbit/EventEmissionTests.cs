@@ -275,6 +275,71 @@ public sealed class EventEmissionTests : IAsyncDisposable
         await rig.StopAsync();
     }
 
+    [Fact]
+    public async Task RegimeForce_Volatile_PublishesToBifrostMcExchange_NotEventsRegimeChange()
+    {
+        // D-14 amendment gate: orchestrator MUST route RegimeForce to
+        // bifrost.mc / mc.regime.force so the quoter consumes and emits the
+        // public Event.RegimeChange envelope. The orchestrator MUST NOT emit
+        // events.regime_change directly — Phase 03 D-17 locks the quoter as
+        // the sole emitter.
+        ActorRig rig = await BuildAndStartActorAsync();
+
+        rig.Harness.Clear();
+
+        TaskCompletionSource<McCommandResult> tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        await rig.Channel.Writer.WriteAsync(
+            new McCommandMessage(
+                TsNs: 1_000L,
+                Cmd: new McCommand
+                {
+                    OperatorHost = "mc",
+                    Confirm = true,
+                    RegimeForce = new RegimeForceCmd
+                    {
+                        Regime = Bifrost.Contracts.Events.Regime.Volatile,
+                    },
+                },
+                Tcs: tcs,
+                SourceTag: "test"),
+            rig.Cts.Token);
+
+        McCommandResult result = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5), rig.Cts.Token);
+        Assert.True(result.Success, $"Expected success, got: {result.Message}");
+
+        await Task.Delay(100, rig.Cts.Token);
+
+        // Exactly one publish on bifrost.mc / mc.regime.force.
+        IReadOnlyList<CapturedPublish> regimeForcePublishes = rig.Harness.Captured
+            .Where(c => c.Exchange == OrchestratorRabbitMqTopology.QuoterMcExchange
+                     && c.RoutingKey == OrchestratorRabbitMqTopology.QuoterMcRegimeRoutingKey)
+            .ToList();
+        Assert.Single(regimeForcePublishes);
+
+        // Literal-string sanity check: no environment-config-driven divergence
+        // from D-14's "bifrost.mc" + "mc.regime.force" wire requirement.
+        Assert.Equal("bifrost.mc", regimeForcePublishes[0].Exchange);
+        Assert.Equal("mc.regime.force", regimeForcePublishes[0].RoutingKey);
+
+        // Zero publishes on any events.regime* routing key — orchestrator
+        // never emits events.regime_change directly.
+        Assert.DoesNotContain(rig.Harness.Captured, c =>
+            c.RoutingKey.StartsWith("events.regime", StringComparison.Ordinal));
+
+        // Payload shape matches the quoter's McRegimeForceDto wire contract:
+        // camelCase "regime" field carrying the PascalCase string name and a
+        // non-empty "nonce" field carrying a JSON-serialised Guid.
+        using JsonDocument doc = JsonDocument.Parse(regimeForcePublishes[0].BodyAsString);
+        JsonElement payload = doc.RootElement.GetProperty("payload");
+        Assert.Equal("Volatile", payload.GetProperty("regime").GetString());
+        string? nonce = payload.GetProperty("nonce").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(nonce));
+        Assert.True(Guid.TryParse(nonce, out _),
+            $"nonce must parse as a Guid; got '{nonce}'");
+
+        await rig.StopAsync();
+    }
+
     private static readonly JsonSerializerOptions CamelCaseOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
