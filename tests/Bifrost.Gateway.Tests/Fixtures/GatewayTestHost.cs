@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
 using Bifrost.Contracts.Internal.Commands;
 using Bifrost.Exchange.Application.RoundState;
+using Bifrost.Gateway.Position;
 using Bifrost.Gateway.Rabbit;
+using Bifrost.Gateway.State;
+using Bifrost.Time;
 using Grpc.Net.Client;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -10,6 +13,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Bifrost.Gateway.Tests.Fixtures;
 
@@ -79,7 +83,39 @@ public sealed class GatewayTestHost : WebApplicationFactory<Program>
                                 || ns.StartsWith("Bifrost.Gateway.Dispatch", StringComparison.Ordinal)))
                 .ToList();
             foreach (var d in hostedDescriptors) services.Remove(d);
+
+            // Plan 07-08 acceptance tests inject events directly into the gateway via
+            // PrivateEventConsumer.DispatchEnvelopeAsync (the internal seam). Re-register
+            // the consumer as a plain singleton (NOT as IHostedService — its ExecuteAsync
+            // would resolve a real IConnection at host start). Pass null IConnection;
+            // DispatchEnvelopeAsync never reads it.
+            services.RemoveAll<PrivateEventConsumer>();
+            services.AddSingleton(sp => new PrivateEventConsumer(
+                connection: null!,
+                registry: sp.GetRequiredService<TeamRegistry>(),
+                clock: sp.GetRequiredService<IClock>(),
+                tracker: sp.GetRequiredService<PositionTracker>(),
+                log: sp.GetRequiredService<ILogger<PrivateEventConsumer>>()));
         });
+    }
+
+    /// <summary>
+    /// Test seam: get the in-process <see cref="PrivateEventConsumer"/> singleton so
+    /// suites can drive <c>DispatchEnvelopeAsync</c> directly (the same code path real
+    /// RabbitMQ deliveries take, minus the AMQP envelope decoding).
+    /// </summary>
+    public PrivateEventConsumer GetPrivateEventConsumer() =>
+        Services.GetRequiredService<PrivateEventConsumer>();
+
+    /// <summary>
+    /// Test seam: snapshot a team's <see cref="TeamState"/> (registry lock taken
+    /// briefly + released; the returned reference is the live object). Useful for
+    /// assertions on per-team open-orders maps after a mass-cancel or fill replay.
+    /// </summary>
+    public TeamState? GetTeamState(string teamName)
+    {
+        var registry = Services.GetRequiredService<TeamRegistry>();
+        return registry.TryGetByName(teamName, out var state) ? state : null;
     }
 
     /// <summary>Build a gRPC channel against the in-memory test server.</summary>

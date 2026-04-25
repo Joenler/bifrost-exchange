@@ -42,7 +42,11 @@ public sealed class PrivateEventConsumer : BackgroundService
         PropertyNameCaseInsensitive = true,
     };
 
-    private readonly IConnection _connection;
+    // Nullable for test construction (07-08 acceptance suites): tests instantiate
+    // the consumer to drive DispatchEnvelopeAsync directly via the internal seam
+    // and never invoke ExecuteAsync (where _connection IS used). Production DI
+    // always supplies a non-null IConnection through Program.cs.
+    private readonly IConnection? _connection;
     private readonly TeamRegistry _registry;
     private readonly IClock _clock;
     private readonly PositionTracker _tracker;
@@ -56,7 +60,7 @@ public sealed class PrivateEventConsumer : BackgroundService
         PositionTracker tracker,
         ILogger<PrivateEventConsumer> log)
     {
-        _connection = connection ?? throw new ArgumentNullException(nameof(connection));
+        _connection = connection;   // null permitted for unit tests; ExecuteAsync rejects null
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _tracker = tracker ?? throw new ArgumentNullException(nameof(tracker));
@@ -65,6 +69,8 @@ public sealed class PrivateEventConsumer : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (_connection is null)
+            throw new InvalidOperationException("PrivateEventConsumer: IConnection is required when running as a HostedService (production DI).");
         // Pitfall 6: dedicated channel per consumer.
         _channel = await _connection.CreateChannelAsync(cancellationToken: stoppingToken);
 
@@ -120,7 +126,21 @@ public sealed class PrivateEventConsumer : BackgroundService
     private async Task HandleDeliveryAsync(BasicDeliverEventArgs ea, CancellationToken ct)
     {
         var envelope = JsonSerializer.Deserialize<Envelope<JsonElement>>(ea.Body.Span, JsonOptions);
-        if (envelope is null || string.IsNullOrEmpty(envelope.ClientId)) return;
+        if (envelope is null) return;
+        await DispatchEnvelopeAsync(envelope, ct);
+    }
+
+    /// <summary>
+    /// Test seam (07-08 acceptance suites). The production delivery loop deserializes
+    /// the wire body into an <see cref="Envelope{JsonElement}"/> then dispatches via
+    /// this method — exactly the same code path real RabbitMQ deliveries take, minus
+    /// the AMQP envelope decoding. <c>InternalsVisibleTo("Bifrost.Gateway.Tests")</c>
+    /// in <c>Bifrost.Gateway.csproj</c> exposes this for direct invocation.
+    /// </summary>
+    internal async Task DispatchEnvelopeAsync(Envelope<JsonElement> envelope, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
+        if (string.IsNullOrEmpty(envelope.ClientId)) return;
         if (!_registry.TryGetByClientId(envelope.ClientId, out var teamState) || teamState is null) return;
 
         // Translate per envelope.MessageType.
