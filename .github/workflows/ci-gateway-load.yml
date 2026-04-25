@@ -1,0 +1,79 @@
+name: ci-gateway-load
+
+# D-19: nightly cron + on-demand workflow_dispatch. The 8-team load harness
+# is too heavy (≥ 60 s sustained, Testcontainers RabbitMQ boot, 8 GrpcChannels)
+# to run on every PR — keeping it on a separate workflow file means the main
+# `ci` matrix in ci.yml stays under the per-PR feedback budget while the
+# GW-09 SLOs are still enforced nightly + before any release-tag push.
+on:
+  schedule:
+    # 03:00 UTC nightly — runs only on the default branch per GitHub Actions
+    # cron semantics (acceptable for a load harness gating release readiness).
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  gateway-load:
+    name: ci-gateway-load
+    runs-on: ubuntu-latest
+    # Budget: container boot (~10s) + cold restore/build (~60s) + 60s harness
+    # + jq gate (~1s) ≈ 2.5 min worst-case. 15 min ceiling is generous and
+    # exists only to bound runaway scenarios (Testcontainers stuck pull, etc.).
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore + build (Release)
+        run: |
+          dotnet restore Bifrost.sln
+          dotnet build tests/Bifrost.Gateway.Load.Tests/Bifrost.Gateway.Load.Tests.csproj \
+            -c Release --nologo
+
+      - name: Run 8-team load harness (Trait=Load)
+        # SPEC req 11 / GW-09: 8 teams × 30 ord/s × 60 s sustained.
+        # Assertions in the harness fail-fast on:
+        #   - msg_count == 0 (harness produced nothing)
+        #   - duration_s < 55 (timer drift / early exit)
+        #   - p99_inbound_ms ≥ 50 (inbound budget breach)
+        #   - p99_fanout_ms ≥ 100 (only when != 0; v1 returns 0 — instrumentation deferred to Phase 12a)
+        # The jq step below is defense-in-depth on the same thresholds.
+        run: |
+          dotnet test tests/Bifrost.Gateway.Load.Tests/Bifrost.Gateway.Load.Tests.csproj \
+            -c Release --no-build --nologo \
+            --filter "Category=Load" \
+            --logger "console;verbosity=normal"
+
+      - name: Locate load-report.json
+        id: locate
+        run: |
+          path=$(find tests/Bifrost.Gateway.Load.Tests/bin/Release -name load-report.json -print -quit)
+          test -n "$path" || { echo "::error::load-report.json not produced"; exit 1; }
+          echo "report=$path" >> "$GITHUB_OUTPUT"
+          echo "--- load-report.json ---"
+          cat "$path"
+
+      - name: Assert SLO thresholds (jq)
+        # GW-09 SLOs:
+        #   p99 inbound  < 50 ms
+        #   p99 fan-out < 100 ms (or 0 — instrumentation deferred to Phase 12a;
+        #                         re-tightened to strict `< 100` once the
+        #                         ForecastDispatcher records per-emit timestamps)
+        # `jq -e` exits non-zero when the filter evaluates to false / null,
+        # which is exactly the SLO-breach signal the workflow needs.
+        run: |
+          path="${{ steps.locate.outputs.report }}"
+          jq -e '.p99_inbound_ms < 50 and (.p99_fanout_ms == 0 or .p99_fanout_ms < 100)' "$path"
+
+      - name: Upload load-report.json
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-report
+          path: ${{ steps.locate.outputs.report }}
+          retention-days: 30
