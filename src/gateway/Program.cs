@@ -116,6 +116,7 @@ builder.Services.AddHostedService<RoundStateConsumer>();
 // IHostApplicationLifetime.ApplicationStopping hook below with a 5-second SIGTERM budget.
 builder.Services.AddSingleton<DisconnectHandler>();
 builder.Services.AddHostedService<Bifrost.Gateway.Dispatch.ForecastDispatcher>();
+builder.Services.AddHostedService<HeartbeatService>();
 
 // Phase 00 sentinel: writes /tmp/bifrost-ready when the host is up.
 builder.Services.AddHostedService<StartupLogger>();
