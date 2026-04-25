@@ -1,9 +1,12 @@
 using System.Diagnostics;
+using Bifrost.Exchange.Infrastructure.RabbitMq;
 using Grpc.Net.Client;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using RabbitMQ.Client;
 
 namespace Bifrost.Gateway.Load.Tests;
 
@@ -50,8 +53,25 @@ public sealed class LoadHarness : IAsyncDisposable
         _rabbit = rabbit;
     }
 
-    public static Task<LoadHarness> CreateAsync(RabbitMqContainerFixture rabbit)
+    public static async Task<LoadHarness> CreateAsync(RabbitMqContainerFixture rabbit)
     {
+        // Bootstrap the central-machine RabbitMQ topology against the bare
+        // Testcontainers broker BEFORE the gateway starts. In production these
+        // exchanges are declared by the matching engine (bifrost.cmd, via
+        // RabbitMqTopology.DeclareExchangeTopologyAsync — see
+        // src/exchange/Exchange.Infrastructure.RabbitMq/RabbitMqTopology.cs)
+        // and by the orchestrator (bifrost.round.v1) and dah-auction
+        // (bifrost.auction). The gateway PUBLISHES to bifrost.cmd via its
+        // GatewayCommandPublisher; if the exchange does not exist the
+        // publisher's IChannel is closed by the broker with a 404 NOT_FOUND
+        // (channel.exception class=60 method=40 — basic.publish), which then
+        // surfaces as AlreadyClosedException on every subsequent OrderSubmit
+        // and tears down the bidi stream. The other exchanges are declared
+        // ad-hoc by the consumer-side BackgroundServices (PrivateEventConsumer
+        // etc.) when they bind, so we only need to seed the publish-side
+        // exchange here.
+        await DeclareCentralExchangesAsync(rabbit);
+
         var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Test");
@@ -72,10 +92,27 @@ public sealed class LoadHarness : IAsyncDisposable
         });
 
         // Force lazy host construction so the in-process gateway is up before
-        // synthetic teams connect.
-        _ = factory.CreateClient();
+        // synthetic teams connect. Reading `factory.Server` triggers the same
+        // EnsureServer() path as CreateClient() but without the WAF
+        // CreateDefaultClient pipeline (RedirectHandler etc.) — see RunAsync
+        // below for why bidi gRPC must NOT go through that pipeline.
+        _ = factory.Server;
 
-        return Task.FromResult(new LoadHarness(factory, rabbit));
+        return new LoadHarness(factory, rabbit);
+    }
+
+    private static async Task DeclareCentralExchangesAsync(RabbitMqContainerFixture rabbit)
+    {
+        var factory = new ConnectionFactory
+        {
+            HostName = rabbit.Hostname,
+            Port = rabbit.Port,
+            UserName = "guest",
+            Password = "guest",
+        };
+        await using var connection = await factory.CreateConnectionAsync("bifrost-load-bootstrap");
+        await using var channel = await connection.CreateChannelAsync();
+        await RabbitMqTopology.DeclareExchangeTopologyAsync(channel);
     }
 
     public async Task<LoadReport> RunAsync(
@@ -90,12 +127,35 @@ public sealed class LoadHarness : IAsyncDisposable
 
         try
         {
+            // gRPC bidi over WebApplicationFactory MUST go through
+            // TestServer.CreateHandler — NOT factory.CreateClient. The default
+            // WAF HttpClient injects Microsoft.AspNetCore.Mvc.Testing.Handlers
+            // .RedirectHandler, which calls HttpContent.LoadIntoBufferAsyncCore
+            // on the request body so it can be replayed on a 30x. gRPC bidi
+            // streams use PushStreamContent whose body never ends until the
+            // call completes — buffering it deadlocks the request before it
+            // is dispatched to the test server (no RegisterAck ever flows
+            // back, every SyntheticTeamClient blocks at MoveNext). The
+            // CreateHandler path skips the WAF client pipeline entirely and
+            // talks straight to the in-memory transport, which is the
+            // documented grpc-dotnet integration-test pattern.
+            //
+            // The ResponseVersionHandler wrap is also required: TestServer's
+            // in-memory transport returns HTTP 1.1 responses by default even
+            // when the request was HTTP/2; gRPC validates response version
+            // and aborts the call as a "Bad gRPC response" otherwise. Setting
+            // response.Version = request.Version inside a DelegatingHandler
+            // is the documented workaround
+            // (renatogolia.com/2021/12/19, dotnet/aspnetcore source).
             for (var i = 0; i < teamCount; i++)
             {
-                var http = _factory.CreateClient();
+                var handler = new ResponseVersionHandler
+                {
+                    InnerHandler = _factory.Server.CreateHandler(),
+                };
                 channels[i] = GrpcChannel.ForAddress(
-                    http.BaseAddress!,
-                    new GrpcChannelOptions { HttpClient = http });
+                    "http://localhost",
+                    new GrpcChannelOptions { HttpHandler = handler });
 
                 clients[i] = new SyntheticTeamClient(
                     teamName: $"team-{i:D2}",
@@ -177,5 +237,25 @@ public sealed class LoadHarness : IAsyncDisposable
     {
         _factory.Dispose();
         return ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// DelegatingHandler that copies the request's HTTP version onto the
+    /// response. Required because <c>TestServer.CreateHandler()</c> returns
+    /// HTTP 1.1 on the response by default — even when the request was HTTP/2
+    /// — and Grpc.Net.Client rejects non-HTTP/2 responses with a "Bad gRPC
+    /// response" RpcException. Documented workaround:
+    /// renatogolia.com/2021/12/19, mirrors the helper used in
+    /// <c>dotnet/aspnetcore</c>'s own gRPC functional tests.
+    /// </summary>
+    private sealed class ResponseVersionHandler : DelegatingHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            response.Version = request.Version;
+            return response;
+        }
     }
 }
