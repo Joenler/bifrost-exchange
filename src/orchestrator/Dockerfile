@@ -29,7 +29,13 @@ FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "Bifrost.Orchestrator.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
+# News library ship fixture - 1-entry baseline; Phase 11 populates the full
+# library. Read once at orchestrator boot from the path resolved by
+# OrchestratorOptions.NewsLibraryPath (default /app/config/news-library.json).
+COPY config/ /app/config/
+
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+COPY --from=publish /app/config/ ./config/
 ENTRYPOINT ["dotnet", "Bifrost.Orchestrator.dll"]

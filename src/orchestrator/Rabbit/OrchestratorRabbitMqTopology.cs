@@ -46,11 +46,21 @@ public sealed class OrchestratorRabbitMqTopology
     public const string QuoterMcExchange = "bifrost.mc";
     public const string QuoterMcRegimeRoutingKey = "mc.regime.force";
 
-    // Routing-key constants for the three events the orchestrator directly
-    // emits on bifrost.events.v1.
+    // Routing-key constants for the events the orchestrator directly emits
+    // on bifrost.events.v1.
     public const string EventsNewsRoutingKey = "events.news";
     public const string EventsMarketAlertRoutingKey = "events.market_alert";
     public const string EventsConfigChangeRoutingKey = "events.config_change";
+
+    // Used when a NewsFireCmd resolves to a canned-library entry that carries
+    // an optional shock payload — the orchestrator emits the news envelope on
+    // EventsNewsRoutingKey AND a PhysicalShockPayload envelope on this key.
+    // Underscore-form matches the SPEC's wire-routing convention (see SPEC
+    // Req 9 acceptance test) and the sibling routing keys above; this is
+    // distinct from the imbalance simulator's pre-existing tentative
+    // dot-form binding for operator-injected PhysicalShockCmds, which is a
+    // Phase 04 follow-up rename concern.
+    public const string EventsPhysicalShockRoutingKey = "events.physical_shock";
 
     private readonly IChannel _channel;
 

@@ -143,6 +143,30 @@ public sealed class OrchestratorPublisher
             ct);
 
     /// <summary>
+    /// Publish a PhysicalShock envelope on
+    /// <see cref="OrchestratorRabbitMqTopology.EventsExchange"/> with routing
+    /// key <c>events.physical_shock</c>. Emitted from the orchestrator's
+    /// NewsFireCmd path when the resolved canned-library entry carries an
+    /// optional shock payload (per ADR-0005 canned-library format).
+    /// </summary>
+    /// <remarks>
+    /// Distinct from the imbalance simulator's <c>PhysicalShockEvent</c> DTO
+    /// (sibling on the same internal namespace) which covers the operator-
+    /// injected <c>PhysicalShockCmd</c> path with a required QuarterIndex +
+    /// TimestampNs. This method's payload — <see cref="PhysicalShockPayload"/>
+    /// — leaves QuarterIndex nullable because news-library shocks carry no
+    /// target-quarter hint. Both DTOs publish on the same exchange + routing
+    /// key; downstream consumers select the deserializer that matches their
+    /// subscription.
+    /// </remarks>
+    public ValueTask PublishPhysicalShockAsync(PhysicalShockPayload payload, CancellationToken ct = default) =>
+        PublishEventAsync(
+            MessageTypes.PhysicalShock,
+            OrchestratorRabbitMqTopology.EventsPhysicalShockRoutingKey,
+            payload,
+            ct);
+
+    /// <summary>
     /// Publish an McRegimeForceDto envelope on the Phase-03-owned
     /// <see cref="OrchestratorRabbitMqTopology.QuoterMcExchange"/>
     /// (<c>bifrost.mc</c>, NOT <c>bifrost.mc.v1</c>) with routing key

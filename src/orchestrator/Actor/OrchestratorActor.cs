@@ -332,16 +332,140 @@ public sealed class OrchestratorActor : BackgroundService
         }
     }
 
-    // A follow-up plan fills in NewsFire / NewsPublish / AlertUrgent /
-    // ConfigSet / RegimeForce branches inside this method. Bodies land
-    // WITHOUT constructor changes to OrchestratorActor.
-    private Task HandleEventEmittingCommandAsync(McCommand cmd, CancellationToken ct)
+    // Event-emitting command dispatch: NewsFire / NewsPublish / AlertUrgent /
+    // ConfigSet / RegimeForce. Each branch publishes the corresponding wire
+    // envelope WITHOUT mutating orchestrator state - the round state machine
+    // already returned StateChanged=false / FlagsChanged=false for these
+    // variants. Library-miss on NewsFire and unmapped-regime on RegimeForce
+    // both surface a typed reject by setting _unknownLibraryKey, which the
+    // caller in HandleMcCommandAsync converts into the McCommandResult message.
+    //
+    // RegimeForce routes to bifrost.mc / mc.regime.force (the quoter-inbound
+    // exchange) rather than emitting events.regime_change directly: per Phase
+    // 03 D-17, the quoter is the sole Event.RegimeChange emitter. The quoter
+    // consumes this envelope, installs the regime, cancels-all + re-quotes,
+    // and emits the public events.regime_change envelope itself.
+    private async Task HandleEventEmittingCommandAsync(McCommand cmd, CancellationToken ct)
     {
-        _ = cmd;
-        _ = ct;
-        _ = _newsLibrary;
-        return Task.CompletedTask;
+        switch (cmd.CommandCase)
+        {
+            case McCommand.CommandOneofCase.NewsPublish:
+                await _publisher.PublishNewsAsync(
+                    new NewsPayload(
+                        Text: cmd.NewsPublish?.Text ?? string.Empty,
+                        LibraryKey: string.Empty,
+                        Severity: "info"),
+                    ct);
+                break;
+
+            case McCommand.CommandOneofCase.NewsFire:
+            {
+                string key = cmd.NewsFire?.LibraryKey ?? string.Empty;
+                NewsLibraryEntry? entry = _newsLibrary.TryGet(key);
+                if (entry is null)
+                {
+                    // Library-miss: the round state machine accepted the
+                    // command (event-emitting commands are legal in any state)
+                    // but the canned library has no matching entry. Surface
+                    // the miss as a typed reject by setting _unknownLibraryKey;
+                    // HandleMcCommandAsync converts it into the
+                    // McCommandResult.Message before BuildResult runs. No
+                    // envelope is published - the actor must publish zero
+                    // events on a library miss per the SPEC acceptance test.
+                    _unknownLibraryKey = key;
+                    return;
+                }
+
+                await _publisher.PublishNewsAsync(
+                    new NewsPayload(
+                        Text: entry.Text,
+                        LibraryKey: key,
+                        Severity: entry.Severity),
+                    ct);
+
+                if (entry.Shock is not null)
+                {
+                    // News-library shocks have no quarter context; the wire
+                    // DTO carries QuarterIndex=null and downstream consumers
+                    // interpret per their subscription. The imbalance
+                    // simulator's defense-in-depth check against operator-
+                    // injected PhysicalShockCmds (which always carry a valid
+                    // quarter index) is preserved by the separate
+                    // PhysicalShockEvent DTO on the simulator's bind path.
+                    await _publisher.PublishPhysicalShockAsync(
+                        new PhysicalShockPayload(
+                            Mw: entry.Shock.Mw,
+                            Label: entry.Shock.Label,
+                            Persistence: entry.Shock.Persistence),
+                        ct);
+                }
+
+                break;
+            }
+
+            case McCommand.CommandOneofCase.AlertUrgent:
+                await _publisher.PublishMarketAlertAsync(
+                    new MarketAlertPayload(
+                        Text: cmd.AlertUrgent?.Text ?? string.Empty,
+                        Severity: "urgent"),
+                    ct);
+                break;
+
+            case McCommand.CommandOneofCase.ConfigSet:
+                // OldValue is empty: live-tune that reads its own previous
+                // value lives in Phase 11; Phase 06's audit publish carries
+                // the new value only. Consumers that need the old value can
+                // recover it from their last reconciliation snapshot.
+                await _publisher.PublishConfigChangeAsync(
+                    new ConfigChangePayload(
+                        Path: cmd.ConfigSet?.Path ?? string.Empty,
+                        OldValue: string.Empty,
+                        NewValue: cmd.ConfigSet?.Value ?? string.Empty),
+                    ct);
+                break;
+
+            case McCommand.CommandOneofCase.RegimeForce:
+            {
+                Bifrost.Contracts.Events.Regime protoRegime =
+                    cmd.RegimeForce?.Regime ?? Bifrost.Contracts.Events.Regime.Unspecified;
+                string? regimeName = MapProtoRegimeToQuoterName(protoRegime);
+                if (regimeName is null)
+                {
+                    // Unmapped regime (Unspecified or unknown enum value):
+                    // reuse the same reject channel as NewsFire library-miss.
+                    // The audit log + McCommandResult will both surface
+                    // "unknown library key: regime:Unspecified" - intentional
+                    // overload of the channel given the absence of a more
+                    // specific reject code in the command result wire DTO.
+                    _unknownLibraryKey = $"regime:{protoRegime}";
+                    return;
+                }
+
+                // Wire shape matches McRegimeForceDto on the quoter side
+                // (declared as object here to avoid a Bifrost.Orchestrator ->
+                // Bifrost.Quoter ProjectReference inversion). Nonce is fresh
+                // per publish so the quoter consumer has an idempotent
+                // dedup-key alongside the envelope's CorrelationId.
+                object payload = new
+                {
+                    regime = regimeName,
+                    nonce = Guid.NewGuid(),
+                };
+                await _publisher.PublishRegimeForceAsync(payload, ct);
+                break;
+            }
+        }
     }
+
+    private static string? MapProtoRegimeToQuoterName(Bifrost.Contracts.Events.Regime protoRegime) =>
+        protoRegime switch
+        {
+            Bifrost.Contracts.Events.Regime.Calm => "Calm",
+            Bifrost.Contracts.Events.Regime.Trending => "Trending",
+            Bifrost.Contracts.Events.Regime.Volatile => "Volatile",
+            Bifrost.Contracts.Events.Regime.Shock => "Shock",
+            _ => null,
+        };
 
     private async Task PublishStateSnapshot(bool isReconciliation, CancellationToken ct)
     {

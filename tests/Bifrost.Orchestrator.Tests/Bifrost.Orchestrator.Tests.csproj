@@ -30,4 +30,10 @@
         <ProjectReference Include="..\..\src\common\Bifrost.Time\Bifrost.Time.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <None Update="TestFixtures\news-library-test.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
 </Project>

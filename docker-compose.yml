@@ -86,6 +86,12 @@ services:
         condition: service_healthy
     environment:
       - DOTNET_ENVIRONMENT=Production
+    volumes:
+      # Operator-editable canned news library. The Dockerfile also COPYs the
+      # ship fixture into the image so CI smoke-build (no host bind) still
+      # boots; this read-only bind mount lets event-day operators swap in a
+      # populated library without rebuilding.
+      - ./config/news-library.json:/app/config/news-library.json:ro
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s

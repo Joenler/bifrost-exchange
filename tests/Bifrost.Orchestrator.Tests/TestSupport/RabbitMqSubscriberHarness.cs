@@ -70,6 +70,14 @@ public sealed class RabbitMqSubscriberHarness
             .Where(c => c.RoutingKey.StartsWith(prefix, StringComparison.Ordinal))
             .ToList();
 
+    /// <summary>
+    /// Drop every captured publish so far. Useful when the actor under test
+    /// emits a reconciliation envelope on boot and the assertion only cares
+    /// about post-boot publishes — clear the harness after StartAsync settles
+    /// and before the test body's first WriteAsync.
+    /// </summary>
+    public void Clear() => _captured.Clear();
+
     private void Capture(CapturedPublish publish) => _captured.Add(publish);
 
     private sealed class CapturingChannel : IChannel
