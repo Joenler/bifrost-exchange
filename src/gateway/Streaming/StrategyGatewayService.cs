@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Threading.Channels;
 using Bifrost.Contracts.Internal;
 using Bifrost.Gateway.Guards;
+using Bifrost.Gateway.MassCancel;
 using Bifrost.Gateway.Rabbit;
 using Bifrost.Gateway.State;
 using Bifrost.Gateway.Translation;
@@ -41,6 +42,7 @@ public sealed class StrategyGatewayService : StrategyProto.StrategyGatewayServic
     private readonly IClock _clock;
     private readonly IGatewayCommandPublisher _cmdPublisher;
     private readonly AppRoundState.IRoundStateSource _roundState;
+    private readonly DisconnectHandler _disconnect;
     private readonly int _outboundCapacity;
     private readonly ILogger<StrategyGatewayService> _log;
 
@@ -50,6 +52,7 @@ public sealed class StrategyGatewayService : StrategyProto.StrategyGatewayServic
         IClock clock,
         IGatewayCommandPublisher cmdPublisher,
         AppRoundState.IRoundStateSource roundState,
+        DisconnectHandler disconnect,
         IConfiguration config,
         ILogger<StrategyGatewayService> log)
     {
@@ -58,6 +61,7 @@ public sealed class StrategyGatewayService : StrategyProto.StrategyGatewayServic
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _cmdPublisher = cmdPublisher ?? throw new ArgumentNullException(nameof(cmdPublisher));
         _roundState = roundState ?? throw new ArgumentNullException(nameof(roundState));
+        _disconnect = disconnect ?? throw new ArgumentNullException(nameof(disconnect));
         ArgumentNullException.ThrowIfNull(config);
         _outboundCapacity = config.GetValue("Gateway:OutboundChannelCapacity", 1024);
         if (_outboundCapacity <= 0) _outboundCapacity = 1024;
@@ -225,17 +229,24 @@ public sealed class StrategyGatewayService : StrategyProto.StrategyGatewayServic
         finally
         {
             // 6. Mass-cancel SLO target is 1 s (GW-07). Pitfall 5: NEVER use the per-stream
-            //    `ct` here — it is already cancelled. Plan 07 swaps the stub for the real
-            //    DisconnectHandler invoked under a FRESH CTS:
-            //
-            //        using var cancelCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            //        await _disconnect.HandleAsync(teamState, cancelCts.Token);
-            //
-            //    For Plan 05 we only detach the outbound writer + mark the team
-            //    disconnected — leaving the resting orders intact. Plan 07's mass-cancel
-            //    publishes the cancel fleet under that fresh CTS.
+            //    `ct` here — it is already cancelled. The DisconnectHandler runs under a
+            //    FRESH 2-second CTS so the cancel-fleet publishes can complete even after
+            //    the team's stream has already torn down.
             lock (teamState.StateLock) { teamState.DetachOutbound(); }
             _registry.MarkDisconnected(teamState);
+
+            using var cancelCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            try
+            {
+                await _disconnect.HandleAsync(teamState, cancelCts.Token);
+            }
+            catch (Exception ex)
+            {
+                // The handler swallows publish errors itself; this catch only
+                // protects against an unexpected exception propagating out and
+                // surfacing as a gRPC handler crash on the disconnect path.
+                _log.LogError(ex, "DisconnectHandler.HandleAsync threw for team {Team}", teamState.TeamName);
+            }
         }
     }
 

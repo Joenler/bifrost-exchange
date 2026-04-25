@@ -3,6 +3,7 @@ using Bifrost.Contracts.Internal;
 using Bifrost.Exchange.Application.RoundState;
 using Bifrost.Gateway;
 using Bifrost.Gateway.Guards;
+using Bifrost.Gateway.MassCancel;
 using Bifrost.Gateway.Position;
 using Bifrost.Gateway.Rabbit;
 using Bifrost.Gateway.State;
@@ -108,10 +109,43 @@ builder.Services.AddHostedService<PublicEventConsumer>();
 builder.Services.AddHostedService<AuctionResultConsumer>();
 builder.Services.AddHostedService<RoundStateConsumer>();
 
+// Plan 07: ForecastDispatcher (cohort-jittered ForecastUpdate fan-out — GW-08),
+// DisconnectHandler (mass-cancel-on-disconnect — GW-07), HeartbeatService (gateway
+// liveness — Phase 06 D-19). DisconnectHandler is invoked from
+// StrategyGatewayService.finally with a FRESH 2-second CTS (Pitfall 5) and from the
+// IHostApplicationLifetime.ApplicationStopping hook below with a 5-second SIGTERM budget.
+builder.Services.AddSingleton<DisconnectHandler>();
+builder.Services.AddHostedService<Bifrost.Gateway.Dispatch.ForecastDispatcher>();
+
 // Phase 00 sentinel: writes /tmp/bifrost-ready when the host is up.
 builder.Services.AddHostedService<StartupLogger>();
 
 var app = builder.Build();
+
+// Open Question 2 closure: SIGTERM defensive hook. On `docker stop` (or any other
+// host shutdown signal), iterate the registry and run DisconnectHandler with a 5-second
+// budget so resting orders don't leak past container shutdown. The per-stream finally
+// in StrategyGatewayService also fires its own 2-second mass-cancel, but that path
+// only runs when the bidi stream actually tears down — SIGTERM may close streams
+// uncleanly, so we redo the sweep at the host level as well.
+var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
+lifetime.ApplicationStopping.Register(() =>
+{
+    var registry = app.Services.GetRequiredService<TeamRegistry>();
+    var disconnect = app.Services.GetRequiredService<DisconnectHandler>();
+    var teams = registry.SnapshotAll();
+    if (teams.Length == 0) return;
+    using var shutdownCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+    try
+    {
+        disconnect.HandleAllAsync(teams, shutdownCts.Token).GetAwaiter().GetResult();
+    }
+    catch (Exception ex)
+    {
+        app.Services.GetRequiredService<ILogger<Program>>().LogError(ex, "ApplicationStopping mass-cancel failed");
+    }
+});
+
 app.UseRouting();
 // D-12: prometheus-net /metrics endpoint on the same Kestrel as gRPC.
 app.MapMetrics();

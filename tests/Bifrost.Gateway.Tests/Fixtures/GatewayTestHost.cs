@@ -63,16 +63,20 @@ public sealed class GatewayTestHost : WebApplicationFactory<Program>
             services.RemoveAll<IGatewayCommandPublisher>();
             services.AddSingleton<IGatewayCommandPublisher>(CommandPublisher);
 
-            // Plan 06: 4 RabbitMQ HostedService consumers depend on IConnection.
+            // Plan 06+07: RabbitMQ-backed HostedServices (4 Plan-06 consumers,
+            // ForecastDispatcher, HeartbeatService) all depend on IConnection.
             // The default DI factory eagerly resolves a real RabbitMQ connection,
-            // which we cannot do in-process. Drop the consumer hosted services so
-            // tests don't trip the IConnection resolution at host start. The
-            // separate ConsumerAuditTests covers source-level invariants
-            // (Pitfall 6/9/10) without needing the live consumers.
+            // which we cannot do in-process. Drop every gateway HostedService whose
+            // namespace starts with Bifrost.Gateway.Rabbit OR Bifrost.Gateway.Dispatch
+            // so tests don't trip the IConnection resolution at host start. The
+            // dedicated ConsumerAuditTests + ForecastDispatcherTests + HeartbeatService
+            // tests cover source-level invariants without needing the live services.
             var hostedDescriptors = services
                 .Where(d => d.ServiceType == typeof(IHostedService)
                             && d.ImplementationType is not null
-                            && d.ImplementationType.Namespace?.StartsWith("Bifrost.Gateway.Rabbit", StringComparison.Ordinal) == true)
+                            && d.ImplementationType.Namespace is { } ns
+                            && (ns.StartsWith("Bifrost.Gateway.Rabbit", StringComparison.Ordinal)
+                                || ns.StartsWith("Bifrost.Gateway.Dispatch", StringComparison.Ordinal)))
                 .ToList();
             foreach (var d in hostedDescriptors) services.Remove(d);
         });
