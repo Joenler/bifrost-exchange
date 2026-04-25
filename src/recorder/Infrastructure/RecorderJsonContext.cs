@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Bifrost.Contracts.Internal;
 using Bifrost.Contracts.Internal.Events;
+using Bifrost.Contracts.Internal.McLog;
 
 namespace Bifrost.Recorder.Infrastructure;
 
@@ -24,4 +25,5 @@ namespace Bifrost.Recorder.Infrastructure;
 [JsonSerializable(typeof(BookDeltaEvent))]
 [JsonSerializable(typeof(PublicTradeEvent))]
 [JsonSerializable(typeof(ImbalanceSettlementEvent))]
+[JsonSerializable(typeof(McCommandLogPayload))]
 internal partial class RecorderJsonContext : JsonSerializerContext;

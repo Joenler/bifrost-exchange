@@ -45,4 +45,11 @@ public static class MessageTypes
     public const string AuctionBidSubmitted = "AuctionBidSubmitted";
     public const string AuctionClearingResult = "AuctionClearingResult";
     public const string AuctionNoCross = "AuctionNoCross";
+
+    // Round orchestrator surfaces.
+    public const string RoundStateChanged = "RoundStateChanged";
+    public const string News = "News";
+    public const string MarketAlert = "MarketAlert";
+    public const string ConfigChange = "ConfigChange";
+    public const string McCommandLog = "McCommandLog";
 }
