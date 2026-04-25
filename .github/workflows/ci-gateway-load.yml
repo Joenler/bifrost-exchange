@@ -61,9 +61,10 @@ jobs:
       - name: Assert SLO thresholds (jq)
         # GW-09 SLOs:
         #   p99 inbound  < 50 ms
-        #   p99 fan-out < 100 ms (or 0 — instrumentation deferred to Phase 12a;
-        #                         re-tightened to strict `< 100` once the
-        #                         ForecastDispatcher records per-emit timestamps)
+        #   p99 fan-out < 100 ms (or 0 — outbound instrumentation is the
+        #                         deferred follow-up; re-tightened to strict
+        #                         `< 100` once the ForecastDispatcher records
+        #                         per-emit timestamps)
         # `jq -e` exits non-zero when the filter evaluates to false / null,
         # which is exactly the SLO-breach signal the workflow needs.
         run: |
@@ -71,9 +72,17 @@ jobs:
           jq -e '.p99_inbound_ms < 50 and (.p99_fanout_ms == 0 or .p99_fanout_ms < 100)' "$path"
 
       - name: Upload load-report.json
+        # Static glob — must NOT depend on steps.locate.outputs.report. When
+        # the harness fails before writing load-report.json the Locate step
+        # exits 1 with an empty `report=` output, and the previous form
+        # (`path: ${{ steps.locate.outputs.report }}`) failed the upload step
+        # with "Input required and not supplied: path", masking the real
+        # failure. The static glob + if-no-files-found: warn keeps this step
+        # informational-only on a pre-write failure.
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: load-report
-          path: ${{ steps.locate.outputs.report }}
+          path: tests/Bifrost.Gateway.Load.Tests/bin/Release/**/load-report.json
           retention-days: 30
+          if-no-files-found: warn
