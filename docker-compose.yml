@@ -79,9 +79,13 @@ services:
     build:
       context: .
       dockerfile: src/orchestrator/Dockerfile
+    ports:
+      - "5006:5006"
     depends_on:
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
+    environment:
+      - DOTNET_ENVIRONMENT=Production
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/bifrost-ready"]
       interval: 5s
