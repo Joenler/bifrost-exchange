@@ -109,6 +109,9 @@ TYPE_MAP: dict[str, tuple[str, str]] = {
     # --- mc.proto: bare PhysicalShockCmd standalone (1) + McCommandResult standalone (1) ---
     "mc.PhysicalShockCmd": ("bifrost_contracts.mc.mc_pb2", "PhysicalShockCmd"),
     "mc.McCommandResult": ("bifrost_contracts.mc.mc_pb2", "McCommandResult"),
+
+    # --- mc.proto: OrchestratorService.WatchRoundState request envelope (1) ---
+    "mc.WatchRoundStateRequest": ("bifrost_contracts.mc.mc_pb2", "WatchRoundStateRequest"),
 }
 
 

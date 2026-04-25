@@ -588,6 +588,14 @@ public static class CanonicalBuilders
         DryRunPayload = "preview-body",
     };
 
+    // WatchRoundState server-streaming resume-cursor request. last_seen_transition_ns
+    // is the monotonic nanosecond timestamp the client last observed; the server
+    // replays from there forward if the value is within the in-memory ring buffer.
+    public static WatchRoundStateRequest BuildWatchRoundStateRequest() => new()
+    {
+        LastSeenTransitionNs = 1_714_516_800_000_000_001L,
+    };
+
     /// <summary>
     /// The full CONT-04 coverage list — every top-level message + every oneof
     /// variant (D-10). Each entry is (TypeName, canonicalBytes). TypeName maps
@@ -665,5 +673,8 @@ public static class CanonicalBuilders
         // --- mc.proto: bare PhysicalShockCmd standalone (1) + McCommandResult standalone (1) ---
         yield return ("mc.PhysicalShockCmd", BuildPhysicalShockCmd().ToByteArray());
         yield return ("mc.McCommandResult", BuildMcCommandResult().ToByteArray());
+
+        // --- mc.proto: OrchestratorService request envelope (1) ---
+        yield return ("mc.WatchRoundStateRequest", BuildWatchRoundStateRequest().ToByteArray());
     }
 }
