@@ -1,11 +1,35 @@
-<Project Sdk="Microsoft.NET.Sdk.Worker">
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <RootNamespace>Bifrost.Orchestrator</RootNamespace>
+        <AssemblyName>Bifrost.Orchestrator</AssemblyName>
+    </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.Extensions.Hosting" />
+        <!-- Microsoft.Extensions.Hosting is supplied transitively by the implicit
+             FrameworkReference Microsoft.AspNetCore.App that Microsoft.NET.Sdk.Web
+             adds. Adding it as a direct PackageReference trips NU1510 under
+             TreatWarningsAsErrors (matches the DahAuction csproj pattern). -->
+        <PackageReference Include="Grpc.AspNetCore" />
+        <PackageReference Include="RabbitMQ.Client" />
+        <PackageReference Include="Polly.Core" />
+        <PackageReference Include="Microsoft.Data.Sqlite" />
+        <PackageReference Include="Dapper" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\common\Bifrost.Time\Bifrost.Time.csproj" />
+        <ProjectReference Include="..\..\contracts\dotnet\Bifrost.Contracts.Mc\Bifrost.Contracts.Mc.csproj" />
+        <ProjectReference Include="..\..\contracts\dotnet\Bifrost.Contracts.Round\Bifrost.Contracts.Round.csproj" />
+        <ProjectReference Include="..\..\contracts\dotnet\Bifrost.Contracts.Events\Bifrost.Contracts.Events.csproj" />
+        <ProjectReference Include="..\contracts-internal\Bifrost.Contracts.Internal\Bifrost.Contracts.Internal.csproj" />
+        <ProjectReference Include="..\exchange\Exchange.Application\Bifrost.Exchange.Application.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Update="appsettings.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
 
 </Project>
