@@ -76,6 +76,19 @@ public sealed class TeamRegistry
         }
     }
 
+    /// <summary>
+    /// Plan 06 AuctionResultConsumer: per-team award rows carry TeamName (not
+    /// ClientId) on <c>ClearingResultDto</c>. Looked up under
+    /// <see cref="StringComparer.Ordinal"/> — same as the registration path.
+    /// </summary>
+    public bool TryGetByName(string teamName, out TeamState? state)
+    {
+        lock (_lock)
+        {
+            return _byTeamName.TryGetValue(teamName, out state);
+        }
+    }
+
     public void MarkDisconnected(TeamState state)
     {
         // Registry stays — reconnect-by-name is GW-02. State is preserved.

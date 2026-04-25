@@ -34,4 +34,24 @@ public static class GatewayTopology
 
     /// <summary>Per-team private queue name. Plan 06 binds this to bifrost.private.# for the team's clientId.</summary>
     public static string PerTeamPrivateQueue(string clientId) => $"bifrost.gateway.private.{clientId}";
+
+    /// <summary>
+    /// Local mirror of <c>Bifrost.DahAuction.Rabbit.AuctionRabbitTopology.AuctionExchange</c>
+    /// — the gateway must not depend on the dah-auction Web SDK host project just to
+    /// read a constant. Same value (<c>"bifrost.auction"</c>) is the contract.
+    /// </summary>
+    public const string AuctionExchange = "bifrost.auction";
+
+    /// <summary>
+    /// Mirrors <c>Bifrost.DahAuction.Rabbit.AuctionRabbitTopology.AuctionClearedRoutingKey</c>.
+    /// Direct exchange + per-quarter routing key.
+    /// </summary>
+    public static string AuctionClearedRoutingKey(string quarterId) => $"bifrost.auction.cleared.{quarterId}";
+
+    /// <summary>
+    /// Local mirror of <c>Bifrost.Orchestrator.Rabbit.OrchestratorRabbitMqTopology.RoundExchange</c>
+    /// — the gateway must not depend on the orchestrator host project just to read a constant.
+    /// Same value (<c>"bifrost.round.v1"</c>) is the contract.
+    /// </summary>
+    public const string RoundExchange = "bifrost.round.v1";
 }

@@ -3,6 +3,7 @@ using Bifrost.Contracts.Internal;
 using Bifrost.Exchange.Application.RoundState;
 using Bifrost.Gateway;
 using Bifrost.Gateway.Guards;
+using Bifrost.Gateway.Position;
 using Bifrost.Gateway.Rabbit;
 using Bifrost.Gateway.State;
 using Bifrost.Gateway.Streaming;
@@ -97,6 +98,15 @@ builder.Services.AddSingleton<IGatewayCommandPublisher>(sp =>
 
 // Bidi gRPC service.
 builder.Services.AddSingleton<StrategyGatewayService>();
+
+// Plan 06: PositionTracker + 4 RabbitMQ consumers driving the per-team outbound channels.
+// Each consumer creates its OWN IChannel inside ExecuteAsync from the shared IConnection
+// (Pitfall 6); each uses AsyncEventingBasicConsumer push subscription (Pitfall 9).
+builder.Services.AddSingleton<PositionTracker>();
+builder.Services.AddHostedService<PrivateEventConsumer>();
+builder.Services.AddHostedService<PublicEventConsumer>();
+builder.Services.AddHostedService<AuctionResultConsumer>();
+builder.Services.AddHostedService<RoundStateConsumer>();
 
 // Phase 00 sentinel: writes /tmp/bifrost-ready when the host is up.
 builder.Services.AddHostedService<StartupLogger>();
