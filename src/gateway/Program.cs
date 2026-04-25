@@ -66,25 +66,34 @@ builder.Services.AddSingleton<IRoundStateSource>(_ =>
 // RabbitMQ resilient connection (Quoter pattern: src/quoter/Program.cs lines 20-43).
 // In integration tests the IConnection binding is replaced with a stub before the
 // publisher factory runs (Bifrost.Gateway.Tests.Fixtures.GatewayTestHost).
-var rabbitConfig = builder.Configuration.GetSection("RabbitMq");
-var factory = new ConnectionFactory
+//
+// IMPORTANT: the RabbitMq:* config values and the ConnectionFactory MUST be
+// resolved INSIDE the DI factory lambda — NOT captured at top-level Program
+// scope — because WebApplicationFactory<Program>.ConfigureAppConfiguration
+// callbacks (used by the load harness to point this gateway at a
+// Testcontainers broker) run during host Build(). A top-level read of
+// `builder.Configuration.GetSection("RabbitMq")["Host"]` happens BEFORE
+// Build() and therefore observes the appsettings/env value, not the WAF
+// in-memory override — which previously caused the load harness to attempt
+// connections against the literal string "rabbitmq" on the GH Actions
+// runner and fail with BrokerUnreachableException after the Polly
+// retry budget elapsed.
+builder.Services.AddSingleton<IConnection>(sp =>
 {
-    HostName = rabbitConfig["Host"] ?? "rabbitmq",
-    Port = int.Parse(rabbitConfig["Port"] ?? "5672", CultureInfo.InvariantCulture),
-    UserName = rabbitConfig["Username"] ?? "guest",
-    Password = rabbitConfig["Password"] ?? "guest",
-};
-
-using var startupLoggerFactory = LoggerFactory.Create(b => b.AddConsole());
-var startupLogger = startupLoggerFactory.CreateLogger("Bifrost.Gateway.Startup");
-var pipeline = RabbitMqResilience.CreateConnectionPipeline(startupLogger);
-
-// Connection creation is wrapped in DI factory (lazy) so the test host can replace
-// IConnection before the GatewayCommandPublisher factory runs.
-builder.Services.AddSingleton<IConnection>(_ =>
-    pipeline.ExecuteAsync(
+    var cfg = sp.GetRequiredService<IConfiguration>().GetSection("RabbitMq");
+    var factory = new ConnectionFactory
+    {
+        HostName = cfg["Host"] ?? "rabbitmq",
+        Port = int.Parse(cfg["Port"] ?? "5672", CultureInfo.InvariantCulture),
+        UserName = cfg["Username"] ?? "guest",
+        Password = cfg["Password"] ?? "guest",
+    };
+    var log = sp.GetRequiredService<ILoggerFactory>().CreateLogger("Bifrost.Gateway.Startup");
+    var pipeline = RabbitMqResilience.CreateConnectionPipeline(log);
+    return pipeline.ExecuteAsync(
         async ct => await factory.CreateConnectionAsync("bifrost-gateway", ct),
-        CancellationToken.None).AsTask().GetAwaiter().GetResult());
+        CancellationToken.None).AsTask().GetAwaiter().GetResult();
+});
 
 // GatewayCommandPublisher — dedicated IChannel per publisher (Pitfall 6).
 builder.Services.AddSingleton<IGatewayCommandPublisher>(sp =>
