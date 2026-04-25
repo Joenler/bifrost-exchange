@@ -69,3 +69,25 @@ message McCommandResult {
   bifrost.round.v1.RoundState new_state = 3;
   string dry_run_payload = 4;                   // populated when dry_run=true
 }
+
+// Internal MC-facing gRPC surface. Hosted by the orchestrator on
+// port 5006 (LAN only, no TLS), consumed by the MC console CLI and by
+// in-process orchestrator-test clients. The gRPC server MAPS every
+// business-logic failure to McCommandResult { success=false, message=... };
+// it NEVER returns a gRPC-level RpcException for business-logic failures
+// (transport-level OperationCanceledException is the only exception that
+// propagates).
+service OrchestratorService {
+  rpc Execute(McCommand) returns (McCommandResult);
+  rpc WatchRoundState(WatchRoundStateRequest) returns (stream bifrost.round.v1.RoundState);
+}
+
+// Request for OrchestratorService.WatchRoundState. last_seen_transition_ns=0
+// means fresh connect (server streams current state first, then subsequent
+// transitions). Nonzero means resume from that transition; if the requested
+// transition is outside the in-memory ring buffer (capacity 128), the server
+// streams the current state as a synthetic "resume-reset" — it does NOT
+// reject with REREGISTER_REQUIRED.
+message WatchRoundStateRequest {
+  int64 last_seen_transition_ns = 1;
+}
