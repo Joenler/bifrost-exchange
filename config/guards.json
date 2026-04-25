@@ -1,0 +1,13 @@
+{
+  "otr": {
+    "window_seconds": 60,
+    "max_ratio": 50,
+    "timeout_seconds": 1
+  },
+  "max_open_orders_per_instrument": 50,
+  "max_order_notional_mwh": 50,
+  "max_position_per_instrument_mwh": 1000,
+  "self_trade_protection": "cancel_newer",
+  "gateway_msg_rate_per_team": 500,
+  "gateway_msg_rate_timeout_seconds": 1
+}
