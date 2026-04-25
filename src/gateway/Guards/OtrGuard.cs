@@ -17,7 +17,7 @@ namespace Bifrost.Gateway.Guards;
 ///
 /// CALLER holds <see cref="TeamState.StateLock"/>.
 /// </summary>
-internal static class OtrGuard
+public static class OtrGuard
 {
     public static GuardResult Check(TeamState state, StrategyProto.StrategyCommand cmd, IClock clock, GuardThresholds t)
     {

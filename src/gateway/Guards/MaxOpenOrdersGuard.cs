@@ -12,7 +12,7 @@ namespace Bifrost.Gateway.Guards;
 ///
 /// CALLER holds <see cref="TeamState.StateLock"/>.
 /// </summary>
-internal static class MaxOpenOrdersGuard
+public static class MaxOpenOrdersGuard
 {
     public static GuardResult Check(TeamState state, StrategyProto.StrategyCommand cmd, GuardThresholds t)
     {

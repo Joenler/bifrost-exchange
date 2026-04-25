@@ -9,7 +9,7 @@ namespace Bifrost.Gateway.Guards;
 /// + Phase 02 D-09 — teams must always be able to flatten exposure regardless
 /// of round state. Failure rejects with REJECT_REASON_EXCHANGE_CLOSED.
 /// </summary>
-internal static class StateGateGuard
+public static class StateGateGuard
 {
     public static GuardResult Check(StrategyProto.StrategyCommand cmd, RoundProto.State round)
     {

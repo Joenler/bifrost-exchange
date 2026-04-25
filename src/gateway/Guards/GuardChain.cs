@@ -22,7 +22,7 @@ namespace Bifrost.Gateway.Guards;
 /// calls so first-failure short-circuit is preserved and the OTR / MsgRate
 /// state-update side effects fire only when the chain reaches them.
 /// </summary>
-internal static class GuardChain
+public static class GuardChain
 {
     public static GuardResult Evaluate(
         TeamState state,

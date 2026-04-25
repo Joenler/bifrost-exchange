@@ -10,7 +10,7 @@ namespace Bifrost.Gateway.Guards;
 /// and reserved client_id literals. Defence-in-depth for SPEC req 9 on top of the
 /// InboundTranslator boundary check.
 /// </summary>
-internal static class StructuralGuard
+public static class StructuralGuard
 {
     public static GuardResult Check(StrategyProto.StrategyCommand cmd)
     {

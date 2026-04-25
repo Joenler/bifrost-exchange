@@ -14,7 +14,7 @@ namespace Bifrost.Gateway.Guards;
 ///
 /// CALLER holds <see cref="TeamState.StateLock"/>.
 /// </summary>
-internal static class MsgRateGuard
+public static class MsgRateGuard
 {
     public static GuardResult Check(TeamState state, IClock clock, GuardThresholds t)
     {

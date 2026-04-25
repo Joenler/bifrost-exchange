@@ -9,7 +9,7 @@ namespace Bifrost.Gateway.Guards;
 /// Replace uses <see cref="StrategyProto.OrderReplace.NewQuantityTicks"/> (0 = unchanged
 /// → guard skips, since the existing order's notional was already validated).
 /// </summary>
-internal static class MaxNotionalGuard
+public static class MaxNotionalGuard
 {
     public static GuardResult Check(StrategyProto.StrategyCommand cmd, GuardThresholds t)
     {

@@ -12,7 +12,7 @@ namespace Bifrost.Gateway.Guards;
 ///
 /// CALLER holds <see cref="TeamState.StateLock"/>.
 /// </summary>
-internal static class SelfTradeGuard
+public static class SelfTradeGuard
 {
     public static GuardResult Check(TeamState state, StrategyProto.StrategyCommand cmd)
     {
