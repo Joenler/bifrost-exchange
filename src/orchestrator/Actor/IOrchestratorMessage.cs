@@ -13,8 +13,9 @@ namespace Bifrost.Orchestrator.Actor;
 ///   <item><see cref="IterationSeedTickMessage"/>: from the iteration-seed
 ///         rotation timer (landed in a follow-up plan).</item>
 /// </list>
-/// There is deliberately NO AutoAdvanceTickMessage variant — the no-auto-advance
-/// requirement locks zero timer-driven state transitions.
+/// There is deliberately no transition-driving timer variant — the
+/// no-timer-driven-transition requirement locks zero implicit state changes.
+/// Every transition arrives as an <see cref="McCommandMessage"/>.
 /// </summary>
 public abstract record IOrchestratorMessage(long TsNs);
 
